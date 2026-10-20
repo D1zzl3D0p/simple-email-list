@@ -15,7 +15,7 @@
     "@vitest/runner": "4.1.12",
     "@vitest/snapshot": "4.1.12",
     "prettier": "3.9.10",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "4.1.12",
     "wrangler": "4.151.2"
   },
