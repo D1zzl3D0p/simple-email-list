@@ -1,0 +1,11 @@
+# Copy to .dev.vars for local development only. Never commit real secrets.
+PUBLIC_URL="http://localhost:8787"
+SENDING_ENABLED="false"
+STAGE="local"
+CAPABILITY_SECRET="replace-with-a-random-secret-at-least-32-characters"
+TURNSTILE_SECRET=""
+AWS_ACCESS_KEY_ID=""
+AWS_SECRET_ACCESS_KEY=""
+CLOUDFLARE_EXPORT_TOKEN=""
+CLOUDFLARE_ACCOUNT_ID=""
+CLOUDFLARE_DATABASE_ID=""

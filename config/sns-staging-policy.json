@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AccountAdministration",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::123456789012:root"
+      },
+      "Action": [
+        "sns:GetTopicAttributes",
+        "sns:SetTopicAttributes",
+        "sns:AddPermission",
+        "sns:RemovePermission",
+        "sns:DeleteTopic",
+        "sns:Subscribe",
+        "sns:ListSubscriptionsByTopic",
+        "sns:Publish"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:123456789012:mission-email-staging-events"
+    },
+    {
+      "Sid": "StagingSesEventsOnly",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ses.amazonaws.com"
+      },
+      "Action": "sns:Publish",
+      "Resource": "arn:aws:sns:us-east-1:123456789012:mission-email-staging-events",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceAccount": "123456789012",
+          "AWS:SourceArn": "arn:aws:ses:us-east-1:123456789012:configuration-set/mission-email-staging"
+        }
+      }
+    }
+  ]
+}

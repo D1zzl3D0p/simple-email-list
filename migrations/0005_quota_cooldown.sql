@@ -1,0 +1,2 @@
+ALTER TABLE settings ADD COLUMN quota_retry_at INTEGER;
+ALTER TABLE outbox ADD COLUMN safe_retry_count INTEGER NOT NULL DEFAULT 0;

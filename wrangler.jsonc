@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "personal-mission-email",
+  "main": "src/index.ts",
+  "build": {
+    "command": "node scripts/prepare-mailauth.mjs && node scripts/build-qr.mjs wrangler.jsonc",
+  },
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mission-local-placeholder",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "ARCHIVE", "bucket_name": "mission-private-placeholder" },
+  ],
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "observability": { "enabled": true, "traces": { "enabled": true } },
+  "vars": {
+    "SENDING_ENABLED": "false",
+    "STAGE": "local",
+    "PUBLIC_URL": "https://mission.example.com",
+    "ADMIN_HOST": "admin.mission.example.com",
+    "UPDATE_ADDRESS": "update@in.mission.example.com",
+    "MANAGE_ADDRESS": "manage@in.mission.example.com",
+    "TURNSTILE_SITE_KEY": "",
+    "SES_REGION": "us-east-1",
+    "SES_FROM": "updates@updates.example.com",
+    "SES_CONFIGURATION_SET": "",
+    "SES_DAILY_QUOTA": "0",
+    "SES_RATE": "0",
+    "STAGING_RECIPIENTS": "[]",
+    "SNS_TOPIC_ARN": "",
+    "ACCESS_ISSUER": "",
+    "ACCESS_AUD": "",
+  },
+}

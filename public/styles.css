@@ -1,0 +1,85 @@
+:root {
+  color-scheme: light;
+  --ink: #25382d;
+  --paper: #f8f5ee;
+  --accent: #35634c;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    18px/1.65 system-ui,
+    sans-serif;
+}
+main {
+  max-width: 760px;
+  margin: 8vh auto;
+  padding: 32px;
+}
+h1 {
+  font:
+    500 clamp(2.4rem, 7vw, 4.2rem)/1.1 Georgia,
+    serif;
+  letter-spacing: -0.035em;
+}
+h2 {
+  font-family: Georgia, serif;
+}
+.eyebrow {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+label {
+  display: block;
+  margin-top: 24px;
+}
+input {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #a9b5aa;
+  border-radius: 6px;
+  background: white;
+  font: inherit;
+}
+button {
+  background: var(--accent);
+  color: white;
+  border: 0;
+  border-radius: 6px;
+  padding: 14px 24px;
+  font: 600 1rem system-ui;
+  margin: 20px 0;
+  cursor: pointer;
+}
+a {
+  color: var(--accent);
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #efeee7;
+  padding: 20px;
+  font:
+    15px/1.7 ui-monospace,
+    monospace;
+}
+.fine {
+  font-size: 0.85rem;
+  color: #5f6d63;
+}
+.honey {
+  position: absolute;
+  left: -10000px;
+}
+p[role="alert"] {
+  border-left: 4px solid #a53e25;
+  padding: 12px;
+  background: #fff0e7;
+}

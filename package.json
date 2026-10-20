@@ -1,0 +1,42 @@
+{
+  "dependencies": {
+    "aws4fetch": "1.0.20",
+    "html-to-text": "10.0.1",
+    "jose": "6.2.12",
+    "mailauth": "8.0.1",
+    "postal-mime": "4.0.11",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.5",
+    "@cloudflare/workers-types": "5.20261019.1",
+    "@types/html-to-text": "9.0.4",
+    "@types/qrcode": "1.5.6",
+    "@vitest/runner": "4.1.12",
+    "@vitest/snapshot": "4.1.12",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12",
+    "wrangler": "4.151.2"
+  },
+  "name": "simple-email-list",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bundle": "wrangler deploy --dry-run --outdir dist",
+    "check": "npm test && npm run typecheck && npm run bundle",
+    "dev": "wrangler dev",
+    "types": "wrangler types",
+    "verify:restore": "node scripts/verify-restore.mjs",
+    "format": "prettier --write src tests public scripts *.json *.jsonc *.ts README.md docs/*.md",
+    "postinstall": "node scripts/prepare-mailauth.mjs",
+    "pretest": "node scripts/prepare-mailauth.mjs"
+  },
+  "description": "A self-hosted email list managed by email, built on Cloudflare Workers and Amazon SES.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
+}

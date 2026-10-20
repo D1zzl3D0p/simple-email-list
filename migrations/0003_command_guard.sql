@@ -1,0 +1,1 @@
+CREATE TABLE command_guards (id TEXT PRIMARY KEY, ok INTEGER NOT NULL CHECK(ok=1));

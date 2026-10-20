@@ -1,0 +1,71 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mission-email-staging",
+  "main": "src/index.ts",
+  "build": {
+    "command": "node scripts/prepare-mailauth.mjs && node scripts/build-qr.mjs wrangler.staging.jsonc",
+  },
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mission-email-staging",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ARCHIVE",
+      "bucket_name": "mission-email-staging-private",
+    },
+  ],
+  "triggers": {
+    "crons": ["*/15 * * * *"],
+  },
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true,
+    },
+  },
+  "vars": {
+    "SENDING_ENABLED": "false",
+    "STAGE": "staging",
+    "PUBLIC_URL": "https://staging.example.com",
+    "ADMIN_HOST": "admin.staging.example.com",
+    "UPDATE_ADDRESS": "update@in.staging.example.com",
+    "MANAGE_ADDRESS": "manage@in.staging.example.com",
+    "TURNSTILE_SITE_KEY": "",
+    "SES_REGION": "us-east-1",
+    "SES_FROM": "updates@mail.staging.example.com",
+    "SES_CONFIGURATION_SET": "mission-email-staging",
+    "SES_DAILY_QUOTA": "200",
+    "SES_RATE": "1",
+    "STAGING_RECIPIENTS": "[\"owner@example.com\",\"tester@example.com\"]",
+    "SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:123456789012:mission-email-staging-events",
+    "ACCESS_ISSUER": "https://your-team.cloudflareaccess.com",
+    "ACCESS_AUD": "",
+    "CLOUDFLARE_ACCOUNT_ID": "00000000000000000000000000000000",
+    "CLOUDFLARE_DATABASE_ID": "00000000-0000-0000-0000-000000000000",
+  },
+  "account_id": "00000000000000000000000000000000",
+  "routes": [
+    {
+      "pattern": "staging.example.com",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "admin.staging.example.com",
+      "custom_domain": true,
+    },
+  ],
+}

@@ -1,0 +1,12 @@
+title = "Simple Email List secret scanning"
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fixed synthetic capability secret used only by tests"
+regexTarget = "secret"
+regexes = ['^fixture-secret-with-at-least-32-bytes$']
+
+[[allowlists]]
+description = "Public test-only SNS signing key; never used by a deployed service"
+paths = ['^tests/fixtures/sns-test-key\.pem$']
