@@ -6,18 +6,19 @@ Subscribers join through a simple web form. An approved sender emails the update
 
 ## What it does
 
-- Web signup with Cloudflare Turnstile, personal unsubscribe links, and scoped undo links.
+- Web signup with Cloudflare Turnstile, welcome mail, personal unsubscribe links, and scoped undo links.
+- Success confirmations and final newsletter outcome summaries.
 - Email management commands: `add`, `remove`, `full`, `status`, `pause`, `resume`, and `help`.
 - DKIM verification of approved senders before processing incoming updates or commands.
 - A durable D1 outbox with paced, single-recipient Amazon SES delivery and signed SNS event handling for delivery, bounces, and complaints.
-- Private R2 archives, a Cloudflare Access-protected dashboard, and database backup/restore tooling.
+- Private R2 archives, a Cloudflare Access-protected dashboard, and built-in D1 Time Travel recovery.
 - Text and ordinary links in updates; attachments and inline images are discarded from outgoing messages.
 
 ## Status and costs
 
 This is an early release. Sending is disabled and newsletters start paused. Production deployment needs your own provider setup and validation; the project is not ready to send immediately after cloning.
 
-**Running entirely within Cloudflare Workers Free has not been verified.** CPU optimization is in progress separately and is not included in this initial release. Amazon SES is a separate service with its own charges; do not assume this application is free to operate. See [deployment and operations](docs/operations.md) and the [verification checklist](docs/verification.md).
+Async email intake, private streaming archives and bounded admin pages reduce CPU work. Representative Free-plan CPU measurements passed on a separate staging deployment; the latest welcome/summary paths still need deployed CPU validation. Local capacity tests cover 1,000 weekly subscribers with two years of synthetic history; this is not an unlimited traffic guarantee. Amazon SES is a separate service with its own charges; do not assume this application is free to operate. See [deployment and operations](docs/operations.md) and the [verification checklist](docs/verification.md).
 
 ## Local development
 
@@ -39,13 +40,13 @@ npm run check           # Workers/D1/R2 integration tests, TypeScript, dry-run b
 npm run verify:restore  # SQL export/import into isolated local databases
 ```
 
-The install script applies a version-checked compatibility patch to `mailauth` so its RSA digest argument works in Workers. It fails if the pinned source changes unexpectedly. See [operations](docs/operations.md).
+The install script applies a version-checked compatibility patch to `mailauth` so its RSA digest argument works in Workers and its line processing uses native scans. It fails if the pinned source changes unexpectedly. See [operations](docs/operations.md).
 
 ## Configure your own deployment
 
 Use `wrangler.jsonc` for local development and `wrangler.staging.jsonc` as a staging template. Every address, account ID, database ID, and hostname in the examples must be replaced with your own values. Keep local overrides in an ignored `wrangler.private*.jsonc` file and mailbox settings in an ignored `config/*.local.sql` file.
 
-You will need Cloudflare Workers, Email Routing, D1, private R2, Turnstile, and Access, plus Amazon SES and an SNS event topic. Store credentials as Worker secrets, never in source. Complete the [deployment procedure](docs/operations.md) before enabling delivery.
+You will need Cloudflare Workers, Email Routing, D1, private R2, a Queue, Turnstile, and Access, plus Amazon SES and an SNS event topic. Store credentials as Worker secrets, never in source. Complete the [deployment procedure](docs/operations.md) before enabling delivery.
 
 ## Project layout
 

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import PostalMime from "postal-mime";
-import { parseMail } from "../src/mail";
+import { parseMail, parseMailHeaders } from "../src/mail";
 import { rawMail } from "./helpers";
 const bytes = (value: string) => new TextEncoder().encode(value);
 
@@ -36,6 +36,9 @@ test.each([
     ...(await PostalMime.parse(input)),
     attachments: [],
   });
+  expect(await parseMail(input, await parseMailHeaders(input))).toEqual(
+    await parseMail(input),
+  );
 });
 
 test.each(["\n", "\r\n"])(

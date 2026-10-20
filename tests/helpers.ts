@@ -8,9 +8,6 @@ export function testEnv(extra: Partial<Env> = {}): Env {
     TURNSTILE_SECRET: "test",
     AWS_ACCESS_KEY_ID: "fixture",
     AWS_SECRET_ACCESS_KEY: "fixture",
-    CLOUDFLARE_EXPORT_TOKEN: "",
-    CLOUDFLARE_ACCOUNT_ID: "",
-    CLOUDFLARE_DATABASE_ID: "",
     ...extra,
   };
 }

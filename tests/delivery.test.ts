@@ -151,7 +151,7 @@ test("configuration failure pauses ALL SES while newsletter resume cannot clear 
 test("per_recipient_update_order blocks newer work behind uncertainty", async () => {
   await queue();
   await env.DB.prepare(
-    "INSERT INTO broadcasts VALUES('b2',NULL,'Second','Hello','',1)",
+    "INSERT INTO broadcasts(id,inbound_id,subject,text,album_url,created_at) VALUES('b2',NULL,'Second','Hello','',1)",
   ).run();
   await env.DB.prepare(
     "INSERT INTO outbox(id,kind,recipient,broadcast_id,subscriber_id,generation,state,due_at,created_at) VALUES('second','newsletter','a0@example.com','b2','s0',1,'pending',0,1)",

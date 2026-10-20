@@ -1,16 +1,16 @@
-# Verification checklist
+# Verification
 
-Tests run in the local Workers runtime with D1/R2 bindings. External Turnstile, SES, and certificate-fetch boundaries use synthetic fixtures; cryptographic checks execute locally. `npm run verify:restore` tests SQL export/import into isolated local databases.
+The current local application suite passes 216 tests across 25 files, TypeScript and the dry-run Worker bundle. Tests use local Workers/D1/R2 and synthetic external-service boundaries. They cover strict DKIM and SNS verification, receipt crash recovery, bounded input/private storage, admin authorization/pagination, subscriber generations, quota reservations, welcome deduplication, management confirmations and final broadcast summaries.
 
-Local tests do not establish deployed CPU limits, production credentials, DNS correctness, remote backup recovery, or actual delivery. Before enabling your own deployment, record evidence for:
+`npm run verify:restore` verifies isolated local SQL export/import including body/page references, durable receipt state and welcome/completion flags. It does not prove a live Time Travel rollback.
 
-- Aligned DKIM from an approved sender, tamper rejection, and signed destination/Message-ID checks.
-- Server-side Turnstile hostname/action validation.
-- Signed SNS confirmation and event correlation, bounce suppression, and complaint suppression.
-- SES identity, production access where required, regional quota/rate, and a controlled-recipient send.
-- Worker CPU and other resource limits for HTTP, email, and scheduled workloads at supported input sizes.
-- A consistent remote D1 export and restore into a separate database, with private R2 objects retained.
-- Access login and anonymous/incorrect-host rejection for admin routes.
-- Existing DNS preserved, with routing restricted to the chosen inbound subdomain.
+Before enabling a deployment:
 
-Keep `SENDING_ENABLED=false`, newsletters paused, and staging recipients restricted until these checks pass. This initial public release excludes the concurrent work on Workers Free CPU feasibility.
+- Apply all migrations to an isolated target and verify bindings, provider identity, quota/rate and recipient restrictions.
+- Validate real signed incoming email and correlated SES/SNS events.
+- Measure complete deployed CPU for signup, admin/archive, SMTP entry, cron and separate queue jobs at supported input sizes.
+- Test welcome and final-summary delivery using owner-controlled addresses.
+- Run a disposable Time Travel recovery drill and reconcile external deliveries before resuming.
+- Review storage/daily quotas for your expected sending, signup and admin traffic.
+
+Sending remains disabled in example configuration. No local test or prior private staging result authorizes a new deployment to send.

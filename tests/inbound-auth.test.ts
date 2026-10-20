@@ -25,6 +25,21 @@ test("real aligned DKIM authenticates the visible approved sender", async () => 
     }),
   ).toBe(true);
 });
+test("long signed lines authenticate without changing sliced buffer bytes", async () => {
+  const bytes = new TextEncoder().encode(
+    fixtures.longLineSignature +
+      fixtures.unsigned.replace(
+        "Only the signed content is authorized.",
+        "x".repeat(70000),
+      ),
+  );
+  const backing = new Uint8Array(bytes.length + 20);
+  backing.set(bytes, 7);
+  const input = backing.subarray(7, 7 + bytes.length);
+  expect(await authenticateDkim(input, sender, { resolver, now })).toBe(true);
+  input[input.length - 4] ^= 1;
+  expect(await authenticateDkim(input, sender, { resolver, now })).toBe(false);
+});
 test("a forged receiver pass on unsigned mail grants no authority", async () => {
   const raw =
     "Authentication-Results: mx.cloudflare.net; dmarc=pass header.from=example.com\r\n" +

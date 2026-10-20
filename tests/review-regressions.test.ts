@@ -96,38 +96,36 @@ test("Outlook plain and HTML-derived reply history never executes old commands",
   );
   expect(parseCommands(parsed.text)).toEqual([{ line: 1, command: "help" }]);
 });
-test("failed backup maintenance does not stop ordinary requested mail", async () => {
+test("scheduled delivery never exports the database even with legacy credentials", async () => {
   await env.DB.prepare(
     "INSERT INTO outbox(id,kind,recipient,subject,text,state,due_at,created_at) VALUES('requested','owner','missionary@example.com','Status','requested output','pending',0,0)",
   ).run();
-  vi.stubGlobal(
-    "fetch",
+  const fetchSpy = vi.fn(
     async () => new Response("export outage", { status: 500 }),
   );
+  vi.stubGlobal("fetch", fetchSpy);
   const sent: string[] = [];
   const d = clock();
-  await runScheduled(
-    {
-      ...enabled(),
-      CLOUDFLARE_EXPORT_TOKEN: "fixture",
-      CLOUDFLARE_ACCOUNT_ID: "a",
-      CLOUDFLARE_DATABASE_ID: "d",
+  const legacyEnv = {
+    ...enabled(),
+    CLOUDFLARE_EXPORT_TOKEN: "fixture",
+    CLOUDFLARE_ACCOUNT_ID: "a",
+    CLOUDFLARE_DATABASE_ID: "d",
+  };
+  await runScheduled(legacyEnv, now, {
+    ...d,
+    send: async (_e, m) => {
+      sent.push(m.deliveryId);
+      return { kind: "accepted", messageId: "ses" };
     },
-    now,
-    {
-      ...d,
-      send: async (_e, m) => {
-        sent.push(m.deliveryId);
-        return { kind: "accepted", messageId: "ses" };
-      },
-    },
-  );
+  });
   expect(sent).toContain("requested");
+  expect(fetchSpy).not.toHaveBeenCalled();
   expect(
     await env.DB.prepare(
       "SELECT count(*) FROM incidents WHERE code='backup_failed'",
     ).first("count(*)"),
-  ).toBe(1);
+  ).toBe(0);
 });
 test("summary result persistence failure cannot recursively create another summary", async () => {
   const e = testEnv();

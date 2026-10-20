@@ -21,7 +21,9 @@ export async function parseMailHeaders(raw: Uint8Array) {
   throw Error("Email requires CRLF headers within 32 KiB");
 }
 
-async function parseMime(raw: Uint8Array) {
+type ParsedHeaders = Awaited<ReturnType<typeof parseMailHeaders>>;
+
+async function parseMime(raw: Uint8Array, headers?: ParsedHeaders) {
   // Only a canonical, unencoded UTF-8 single text part can skip PostalMime's
   // per-line body processing. PostalMime still parses every header. Unusual
   // headers, MIME parameters and body bytes take the complete maintained path.
@@ -62,7 +64,8 @@ async function parseMime(raw: Uint8Array) {
     return PostalMime.parse(raw);
   }
 
-  const parsed = await PostalMime.parse(raw.subarray(0, bodyStart));
+  const parsed =
+    headers ?? (await PostalMime.parse(raw.subarray(0, bodyStart)));
   const contentTypes = parsed.headers.filter((h) => h.key === "content-type");
   const encodings = parsed.headers.filter(
     (h) => h.key === "content-transfer-encoding",
@@ -104,8 +107,8 @@ async function parseMime(raw: Uint8Array) {
   return parsed;
 }
 
-export async function parseMail(raw: Uint8Array) {
-  const parsed = await parseMime(raw);
+export async function parseMail(raw: Uint8Array, headers?: ParsedHeaders) {
+  const parsed = await parseMime(raw, headers);
   // Updates and commands consume text only; decoded attachments are discarded.
   parsed.attachments = [];
   const text = (
@@ -133,13 +136,16 @@ export async function parseMail(raw: Uint8Array) {
     fingerprint: await sha256(
       JSON.stringify({ subject, textHash, attachments: [] }),
     ),
-    html: `<pre>${escapeHtml(text)}</pre>`,
+    // Receipt persists text only. Render HTML on demand for callers that use it.
+    get html() {
+      return `<pre>${escapeHtml(text)}</pre>`;
+    },
   };
 }
 export async function prepareNextMessage(env: Env, now: Date): Promise<void> {
   const inbound = await env.DB.prepare(
-    "SELECT * FROM inbound_messages WHERE state='pending' AND role='broadcast' ORDER BY received_at,id LIMIT 1",
-  ).first<{ id: string; subject: string; text: string }>();
+    "SELECT id FROM inbound_messages WHERE state='pending' AND role='broadcast' ORDER BY received_at,id LIMIT 1",
+  ).first<{ id: string }>();
   if (!inbound) return;
   const settings = await getSettings(env.DB);
   const id = inbound.id;
@@ -147,7 +153,7 @@ export async function prepareNextMessage(env: Env, now: Date): Promise<void> {
   await env.DB.batch([
     stmt(
       env.DB,
-      "INSERT OR IGNORE INTO broadcasts(id,inbound_id,subject,text,album_url,created_at) SELECT id,id,subject,text,?,? FROM inbound_messages WHERE id=? AND state='pending'",
+      "INSERT OR IGNORE INTO broadcasts(id,inbound_id,subject,text,text_key,album_url,created_at,completion_reported) SELECT id,id,subject,text,text_key,?,?,0 FROM inbound_messages WHERE id=? AND state='pending'",
       settings.album_url,
       now.getTime(),
       id,

@@ -50,17 +50,19 @@ export async function sendSes(
           Text: { Data: mail.text, Charset: "UTF-8" },
           Html: { Data: mail.html, Charset: "UTF-8" },
         },
-        ...(mail.unsubscribe
-          ? {
-              Headers: [
+        Headers: [
+          { Name: "Auto-Submitted", Value: "auto-generated" },
+          { Name: "X-Auto-Response-Suppress", Value: "All" },
+          ...(mail.unsubscribe
+            ? [
                 { Name: "List-Unsubscribe", Value: `<${mail.unsubscribe}>` },
                 {
                   Name: "List-Unsubscribe-Post",
                   Value: "List-Unsubscribe=One-Click",
                 },
-              ],
-            }
-          : {}),
+              ]
+            : []),
+        ],
       },
     },
   };

@@ -42,7 +42,7 @@ test("optional matching backticks and quoted history/signature boundaries", () =
     parseCommands("help\nOn Monday someone wrote:\nadd ignored@example.com"),
   ).toHaveLength(1);
 });
-test("ordered repeated mutations silent, dedup does not reapply", async () => {
+test("ordered repeated mutations reply once, dedup does not reapply", async () => {
   await inbound();
   const lines = parseCommands(
     "add a@example.com\nremove a@example.com\nadd a@example.com\npause\nresume",
@@ -59,7 +59,10 @@ test("ordered repeated mutations silent, dedup does not reapply", async () => {
   ).toBe("active");
   expect(
     await env.DB.prepare("SELECT count(*) FROM outbox").first("count(*)"),
-  ).toBe(0);
+  ).toBe(1);
+  expect(
+    await env.DB.prepare("SELECT text FROM outbox").first("text"),
+  ).toContain("5. Resumed newsletters");
 });
 test("valid lines apply with one ordered numbered partial-failure summary", async () => {
   await inbound();
@@ -232,7 +235,7 @@ test.each(["Sent from my iPhone", "Sent from my iPad"])(
     ).toBe("active");
     expect(
       await env.DB.prepare("SELECT count(*) n FROM outbox").first("n"),
-    ).toBe(0);
+    ).toBe(1);
     const result = await env.DB.prepare(
       "SELECT results FROM command_results",
     ).first<string>("results");

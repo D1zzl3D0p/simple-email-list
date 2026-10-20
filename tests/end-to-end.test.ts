@@ -49,7 +49,11 @@ test("600 signups → ordinary-subject receipt → durable paced sends → signe
   });
   expect(
     await env.DB.prepare("SELECT count(*) FROM outbox").first("count(*)"),
-  ).toBe(0);
+  ).toBe(600);
+  // Welcome mail is a separate signup result; settle it before exercising newsletter delivery.
+  await env.DB.prepare(
+    "UPDATE outbox SET state='accepted' WHERE is_welcome=1",
+  ).run();
   await env.DB.prepare("UPDATE settings SET paused=0").run();
   const sent: { delivery: string; attempt: string; recipient: string }[] = [];
   let time = now.getTime() + 7 * 86400000;
@@ -86,7 +90,7 @@ test("600 signups → ordinary-subject receipt → durable paced sends → signe
   expect(newsletter).toBeTruthy();
   expect(
     await env.DB.prepare(
-      "SELECT count(*) FROM outbox WHERE kind='newsletter'",
+      "SELECT count(*) FROM outbox WHERE kind='newsletter' AND is_welcome=0",
     ).first("count(*)"),
   ).toBe(600);
   expect(
@@ -177,7 +181,7 @@ test("600 signups → ordinary-subject receipt → durable paced sends → signe
       .first("generation"),
   ).toBe(2);
 });
-test("missionary management is quiet on success and returns one ordered failure/requested response", async () => {
+test("missionary management confirms success and returns one ordered failure/requested response", async () => {
   const e = testEnv();
   await receiveEmail(
     mail(rawMail("add first@example.com"), e.MANAGE_ADDRESS),
@@ -186,7 +190,7 @@ test("missionary management is quiet on success and returns one ordered failure/
   );
   expect(
     await env.DB.prepare("SELECT count(*) FROM outbox").first("count(*)"),
-  ).toBe(0);
+  ).toBe(1);
   await receiveEmail(
     mail(
       rawMail(
@@ -199,9 +203,9 @@ test("missionary management is quiet on success and returns one ordered failure/
   );
   expect(
     await env.DB.prepare("SELECT count(*) FROM outbox").first("count(*)"),
-  ).toBe(1);
+  ).toBe(2);
   const output = await env.DB.prepare(
-    "SELECT recipient,text FROM outbox",
+    "SELECT recipient,text FROM outbox WHERE is_summary=1",
   ).first();
   expect(output?.recipient).toBe("missionary@example.com");
   expect(output?.text).toContain("2. Failed:");

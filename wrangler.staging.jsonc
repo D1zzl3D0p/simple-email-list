@@ -3,39 +3,43 @@
   "name": "mission-email-staging",
   "main": "src/index.ts",
   "build": {
-    "command": "node scripts/prepare-mailauth.mjs && node scripts/build-qr.mjs wrangler.staging.jsonc",
+    "command": "node scripts/prepare-mailauth.mjs && node scripts/build-qr.mjs wrangler.staging.jsonc"
   },
   "compatibility_date": "2026-10-19",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": false,
   "preview_urls": false,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": true,
+    "run_worker_first": true
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "mission-email-staging",
       "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations",
-    },
+      "migrations_dir": "migrations"
+    }
   ],
   "r2_buckets": [
     {
       "binding": "ARCHIVE",
-      "bucket_name": "mission-email-staging-private",
-    },
+      "bucket_name": "mission-email-staging-private"
+    }
   ],
   "triggers": {
-    "crons": ["*/15 * * * *"],
+    "crons": [
+      "*/15 * * * *"
+    ]
   },
   "observability": {
     "enabled": true,
     "traces": {
-      "enabled": true,
-    },
+      "enabled": true
+    }
   },
   "vars": {
     "SENDING_ENABLED": "false",
@@ -53,19 +57,34 @@
     "STAGING_RECIPIENTS": "[\"owner@example.com\",\"tester@example.com\"]",
     "SNS_TOPIC_ARN": "arn:aws:sns:us-east-1:123456789012:mission-email-staging-events",
     "ACCESS_ISSUER": "https://your-team.cloudflareaccess.com",
-    "ACCESS_AUD": "",
-    "CLOUDFLARE_ACCOUNT_ID": "00000000000000000000000000000000",
-    "CLOUDFLARE_DATABASE_ID": "00000000-0000-0000-0000-000000000000",
+    "ACCESS_AUD": ""
   },
   "account_id": "00000000000000000000000000000000",
   "routes": [
     {
       "pattern": "staging.example.com",
-      "custom_domain": true,
+      "custom_domain": true
     },
     {
       "pattern": "admin.staging.example.com",
-      "custom_domain": true,
-    },
+      "custom_domain": true
+    }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "JOBS",
+        "queue": "mission-email-staging-jobs"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "mission-email-staging-jobs",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_concurrency": 1
+      }
+    ]
+  },
+  "minify": true
 }

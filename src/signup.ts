@@ -28,8 +28,59 @@ export function normalizeAddress(input: string): string | null {
     return null;
   return email;
 }
+const githubUrl = "https://github.com/D1zzl3D0p/simple-email-list";
+
+function newsletterPage(content: string, success = false) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sign up for Mission Newsletter. Personal letters and updates from my mission, delivered by email.">
+  <title>${success ? "You’re on the list · " : ""}Mission Newsletter</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="newsletter-page">
+  <div class="newsletter-shell">
+    <header class="newsletter-masthead">
+      <a class="newsletter-wordmark" href="/" aria-label="Mission Newsletter home">Mission Newsletter<span>Letters from my mission</span></a>
+      <span class="newsletter-edition">For friends &amp; family</span>
+    </header>
+    <main class="newsletter-main" id="main">
+      <div class="newsletter-intro">
+        <p class="newsletter-kicker">A letter home</p>
+        <h1>Mission Newsletter<br><em>Newsletter</em></h1>
+        <p class="newsletter-description">Letters, stories, and a little of everyday life on my mission. I’d love to share them with you.</p>
+        <p class="newsletter-signature">— Your newsletter author</p>
+      </div>
+      <section class="newsletter-card" aria-labelledby="signup-heading">
+        ${content}
+      </section>
+    </main>
+    <footer class="newsletter-footer">
+      <p>A personal newsletter. Sent with love.</p>
+      <a href="${githubUrl}" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.68.08-.68 1.13.08 1.73 1.16 1.73 1.16 1 .1.77 2.05 3.27 1.41.1-.73.39-1.23.71-1.51-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.09 1.15a10.75 10.75 0 0 1 5.62 0c2.14-1.45 3.09-1.15 3.09-1.15.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.63 5.28-5.14 5.56.4.35.76 1.03.76 2.08v3.12c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z"/></svg>View on GitHub<span aria-hidden="true">↗</span></a>
+    </footer>
+  </div>
+  ${success ? "" : '<script src="/signup.js"></script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>'}
+</body>
+</html>`;
+}
+
 export function signupPage(env: Env, email = "", error = "") {
-  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Mission updates</title><link rel="stylesheet" href="/styles.css"><main><p class="eyebrow">Friends & family</p><h1>Stay close to the journey.</h1><p>Receive occasional mission updates by email. Unsubscribe whenever you like.</p>${error ? `<p role="alert">${escapeHtml(error)}</p>` : ""}<form method="post" action="/subscribe"><label for="email">Your email</label><input id="email" name="email" type="email" maxlength="254" value="${escapeHtml(email)}" required autocomplete="email"><label class="honey" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label><div class="cf-turnstile" data-sitekey="${escapeHtml(env.TURNSTILE_SITE_KEY)}" data-action="subscribe"></div><button>Subscribe to updates</button></form><p class="fine">By subscribing, you agree to receive these personal updates. No account needed.</p></main><script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script><script src="/signup.js" defer></script></html>`;
+  return newsletterPage(`
+    <p class="newsletter-card-kicker">You’re invited</p>
+    <h2 id="signup-heading">Keep in touch.</h2>
+    <p class="newsletter-card-description">Leave your email and I’ll send you my next newsletter.</p>
+    ${error ? `<p role="alert" id="signup-error">${escapeHtml(error)}</p>` : ""}
+    <form method="post" action="/subscribe">
+      <label for="email">Email address</label>
+      <input id="email" name="email" type="email" maxlength="254" value="${escapeHtml(email)}" placeholder="you@example.com" required autocomplete="email" autocapitalize="none" spellcheck="false"${error ? ' aria-describedby="signup-error"' : ""}>
+      <label class="honey" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+      <div class="cf-turnstile" data-sitekey="${escapeHtml(env.TURNSTILE_SITE_KEY)}" data-action="subscribe" data-theme="light" data-size="flexible"></div>
+      <button type="submit">Sign me up<span aria-hidden="true">→</span></button>
+      <p class="newsletter-consent">You’ll receive my mission newsletters by email.<br>Unsubscribe anytime with the link in each email.</p>
+    </form>`);
 }
 export async function handleSignup(
   request: Request,
@@ -120,7 +171,7 @@ export async function handleSignup(
         ":" +
         Math.floor(now.getTime() / 86400000),
     );
-    await env.DB.batch([
+    const saved = await env.DB.batch([
       stmt(
         env.DB,
         `INSERT INTO subscribers(id,email,status,generation,created_at,updated_at,source,consent_version) VALUES(?,?,'active',1,?,?,'public','2026-10-v1')
@@ -132,13 +183,37 @@ export async function handleSignup(
       ),
       stmt(
         env.DB,
+        `INSERT OR IGNORE INTO outbox(id,kind,recipient,subscriber_id,generation,subject,text,state,due_at,created_at,unique_key,is_welcome)
+        SELECT 'welcome:'||s.id||':'||s.generation,'newsletter',s.email,s.id,s.generation,
+          'Welcome to '||substr(settings.display_name,1,120),
+          'You’re subscribed to '||settings.display_name||'.'||char(10)||char(10)||'Your signup is complete. Future newsletters will arrive at this address. If you did not mean to subscribe, use the unsubscribe link below.',
+          'pending',?,?,'welcome:'||s.id||':'||s.generation,1
+        FROM subscribers s CROSS JOIN settings WHERE settings.id=1 AND s.email=? AND s.status='active'
+        AND NOT EXISTS(SELECT 1 FROM suppressions x WHERE x.email=s.email)`,
+        now.getTime(),
+        now.getTime(),
+        address,
+      ),
+      stmt(
+        env.DB,
         "INSERT INTO rate_counters(key,count,expires_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1",
         network,
         now.getTime() + 172800000,
       ),
     ]);
+    if (saved[1].meta.changes && env.SENDING_ENABLED === "true") {
+      try {
+        await env.JOBS.send({ type: "scheduled" });
+      } catch {
+        // Membership and mail are committed. Regular cron will drain the outbox.
+        console.error(JSON.stringify({ code: "welcome_signal_failed" }));
+      }
+    }
     return htmlResponse(
-      '<!doctype html><html lang="en"><meta charset="utf-8"><link rel="stylesheet" href="/styles.css"><main><h1>You’re on the list.</h1><p>Thanks for following along. Future updates will arrive by email.</p></main></html>',
+      newsletterPage(
+        `<p class="newsletter-card-kicker">All signed up</p><h2 id="signup-heading">You’re on the list.</h2><p class="newsletter-card-description">You’re subscribed as <strong>${escapeHtml(address)}</strong>. ${saved[1].meta.changes ? "Look out for a welcome email shortly." : "Future newsletters will arrive at this address."}</p><p class="newsletter-success-note">I’m glad you’re following along.</p><a class="newsletter-back" href="/">Back to the newsletter <span aria-hidden="true">↗</span></a>`,
+        true,
+      ),
     );
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Input too large"))

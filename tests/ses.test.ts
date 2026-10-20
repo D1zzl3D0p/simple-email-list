@@ -61,6 +61,8 @@ test("signed SES payload has single recipient, correlation, reply and one-click 
     { Name: "attempt_id", Value: "attempt-1" },
   ]);
   expect(JSON.stringify(payload)).toContain("List-Unsubscribe-Post");
+  expect(JSON.stringify(payload)).toContain("auto-generated");
+  expect(JSON.stringify(payload)).toContain("X-Auto-Response-Suppress");
   expect(payload.ReplyToAddresses).toEqual(["missionary@example.com"]);
 });
 test.each([

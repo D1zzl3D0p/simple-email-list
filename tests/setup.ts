@@ -6,6 +6,7 @@ beforeEach(async () => {
   if (objects.objects.length)
     await env.ARCHIVE.delete(objects.objects.map((o) => o.key));
   for (const table of [
+    "receipt_jobs",
     "command_results",
     "provider_events",
     "incidents",

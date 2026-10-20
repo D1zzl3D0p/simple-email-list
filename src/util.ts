@@ -1,16 +1,39 @@
 export const escapeHtml = (s: string) =>
-  s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ]!,
-  );
+  // Literal replacements avoid a JS callback/allocation per special character.
+  // Ampersand must be first so literal entities are escaped exactly once.
+  s.replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 export async function boundedBytes(
   stream: ReadableStream<Uint8Array> | null,
   limit: number,
 ): Promise<Uint8Array> {
   if (!stream) return new Uint8Array();
+  let native: ReadableStreamBYOBReader | undefined;
+  try {
+    native = stream.getReader({ mode: "byob" });
+  } catch {
+    /* JS streams may not support BYOB. */
+  }
+  if (native) {
+    try {
+      // readAtLeast returns fewer bytes only at EOF. Read one byte beyond the
+      // cap so a truncated prefix can never be accepted as the complete body.
+      const { value } = await native.readAtLeast(
+        limit + 1,
+        new Uint8Array(limit + 1),
+      );
+      if (value && value.byteLength > limit) {
+        await native.cancel();
+        throw Error("Input too large; maximum 1 MiB for email");
+      }
+      return value ?? new Uint8Array();
+    } finally {
+      native.releaseLock();
+    }
+  }
   const reader = stream.getReader();
   let length = 0;
   const chunks: Uint8Array[] = [];
@@ -30,9 +53,9 @@ export async function boundedBytes(
   }
   const result = new Uint8Array(length);
   let offset = 0;
-  for (const c of chunks) {
-    result.set(c, offset);
-    offset += c.length;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
   }
   return result;
 }
@@ -45,7 +68,10 @@ export async function sha256(data: Uint8Array | string) {
     b.toString(16).padStart(2, "0"),
   ).join("");
 }
-export function htmlResponse(body: string, status = 200) {
+export function htmlResponse(
+  body: string | ReadableStream<Uint8Array>,
+  status = 200,
+) {
   return new Response(body, {
     status,
     headers: {

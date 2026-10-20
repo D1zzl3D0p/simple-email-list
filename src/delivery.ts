@@ -6,8 +6,8 @@ import { escapeHtml } from "./util";
 import { prepareNextMessage } from "./mail";
 import { startRun, finishRun, recoverRuns, recordIncident } from "./incidents";
 import { ensureWeeklyReport } from "./report";
-import { backupDatabase } from "./backup";
 import { processPendingCommands } from "./inbound";
+import { readBody } from "./body";
 export interface DeliveryDependencies {
   clock: Clock;
   sleep: (ms: number) => Promise<void>;
@@ -24,12 +24,14 @@ interface Work {
   recipient: string;
   subject: string;
   text: string;
+  text_key: string | null;
   album_url: string;
   subscriber_id: string;
   generation: number;
   attempt_count: number;
   safe_retry_count: number;
   is_summary: number;
+  is_welcome: number;
 }
 class NotificationProcessingError extends Error {
   constructor(cause: unknown) {
@@ -73,24 +75,6 @@ export async function runScheduled(
     ).run();
     await recoverRuns(env, now);
     if (budget.remaining() > 20) await ensureWeeklyReport(env, now);
-    if (budget.remaining() > 20) {
-      try {
-        await backupDatabase(env, now);
-      } catch {
-        console.error(JSON.stringify({ code: "backup_failed", runId }));
-        await recordIncident(
-          env,
-          {
-            runId,
-            sourceKey: `backup:${runId}`,
-            code: "backup_failed",
-            detail:
-              "Consistent backup unavailable; progress retained for retry",
-          },
-          d.clock(),
-        );
-      }
-    }
     const pending = await env.DB.prepare(
       "SELECT role FROM inbound_messages WHERE state='pending' ORDER BY received_at,id LIMIT 1",
     ).first<{ role: string }>();
@@ -190,10 +174,10 @@ async function drain(
   // Six ordinary attempts leave room for preparation, completion reporting and maintenance below 40 D1 statements.
   const work = await rows<Work>(
     env.DB,
-    `SELECT o.*,COALESCE(b.subject,o.subject) subject,COALESCE(b.text,o.text,(SELECT 'Processing summary for '||o.id||char(10)||group_concat(detail_line,char(10)) FROM (SELECT code||': '||sum(affected)||' affected — '||min(detail) detail_line FROM incidents WHERE summary_id=o.id GROUP BY code))) text,b.album_url FROM outbox o LEFT JOIN broadcasts b ON b.id=o.broadcast_id
-      WHERE o.state IN ('pending','retry_wait') AND o.due_at<=? AND (o.kind='owner' OR ?=0) AND (? IS NULL OR o.id=?)
+    `SELECT o.*,COALESCE(b.subject,o.subject) subject,COALESCE(b.text,o.text,(SELECT 'Processing summary for '||o.id||char(10)||group_concat(detail_line,char(10)) FROM (SELECT code||': '||sum(affected)||' affected — '||min(detail) detail_line FROM incidents WHERE summary_id=o.id GROUP BY code))) text,b.text_key,COALESCE(b.album_url,'') album_url FROM outbox o LEFT JOIN broadcasts b ON b.id=o.broadcast_id
+      WHERE o.state IN ('pending','retry_wait') AND o.due_at<=? AND (o.kind='owner' OR o.is_welcome=1 OR ?=0) AND (? IS NULL OR o.id=?)
       AND (o.kind='owner' OR NOT EXISTS(SELECT 1 FROM outbox older WHERE older.subscriber_id=o.subscriber_id AND older.kind='newsletter' AND (older.created_at<o.created_at OR (older.created_at=o.created_at AND older.id<o.id)) AND older.state IN ('pending','retry_wait','sending','review_required')))
-      ORDER BY CASE WHEN o.kind='owner' THEN 0 ELSE 1 END,o.created_at,o.id LIMIT ?`,
+      ORDER BY CASE WHEN o.kind='owner' THEN 0 WHEN o.is_welcome=1 THEN 1 ELSE 2 END,o.created_at,o.id LIMIT ?`,
     t,
     settings.paused,
     onlyId ?? null,
@@ -204,6 +188,9 @@ async function drain(
   for (const w of work) {
     try {
       if (remaining() < 12 || d.clock().getTime() >= t + 180000) break;
+      // Resolve before reservation: missing storage must not create an uncertain
+      // SES attempt. Keep inline historical messages on the existing path.
+      const text = await readBody(env, w);
       const lastReservation =
         last ||
         Number(
@@ -223,7 +210,7 @@ async function drain(
         `INSERT INTO send_attempts(id,outbox_id,kind,reserved_at,run_id)
         SELECT ?,id,kind,?,? FROM outbox WHERE id=? AND state IN ('pending','retry_wait') AND due_at<=?
         AND EXISTS(SELECT 1 FROM leases WHERE name='scheduler' AND holder=? AND expires_at>?)
-        AND EXISTS(SELECT 1 FROM settings WHERE transport_paused IS NULL AND (quota_retry_at IS NULL OR quota_retry_at<=?) AND (outbox.kind='owner' OR paused=0))
+        AND EXISTS(SELECT 1 FROM settings WHERE transport_paused IS NULL AND (quota_retry_at IS NULL OR quota_retry_at<=?) AND (outbox.kind='owner' OR outbox.is_welcome=1 OR paused=0))
         AND NOT EXISTS(SELECT 1 FROM suppressions x WHERE x.email=outbox.recipient)
         AND (kind='owner' OR (EXISTS(SELECT 1 FROM subscribers s WHERE s.id=outbox.subscriber_id AND s.status='active' AND s.generation=outbox.generation) AND NOT EXISTS(SELECT 1 FROM suppressions s WHERE s.email=outbox.recipient)))
         AND (SELECT count(*) FROM send_attempts WHERE reserved_at>?)<?
@@ -244,11 +231,16 @@ async function drain(
         stamp - Math.ceil(1000 / rate),
       ).first();
       if (!claimed) continue;
-      let content = { text: w.text, html: `<pre>${escapeHtml(w.text)}</pre>` };
+      let content = { text, html: `<pre>${escapeHtml(text)}</pre>` };
       let leave: string | undefined;
       if (w.kind === "newsletter") {
         leave = `${env.PUBLIC_URL}/unsubscribe?token=${encodeURIComponent(await capability(env, "leave", w.subscriber_id, w.generation))}`;
-        content = newsletterContent(w.text, w.album_url, env.PUBLIC_URL, leave);
+        content = w.is_welcome
+          ? {
+              text: `${text}\n\nPersonal unsubscribe: ${leave}`,
+              html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><p><a href="${escapeHtml(leave)}">Personal unsubscribe</a></p>`,
+            }
+          : newsletterContent(text, w.album_url, env.PUBLIC_URL, leave);
       }
       let result: SendResult;
       try {

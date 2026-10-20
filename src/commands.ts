@@ -162,14 +162,18 @@ export async function applyCommands(
           outputs.push(formatSnapshot({ ...snapshot, paused }));
         if (command === "help")
           outputs.push(
-            `One command per line; optional matching backticks.\nadd address@example.com\nremove address@example.com\nfull\nstatus\npause\nresume\nhelp\n\nManage: ${env.MANAGE_ADDRESS}\nBroadcast: ${env.UPDATE_ADDRESS}\nOnly approved authenticated mail to the update address broadcasts. Success is silent. Provider restrictions require recovery review.`,
+            `One command per line; optional matching backticks.\nadd address@example.com\nremove address@example.com\nfull\nstatus\npause\nresume\nhelp\n\nManage: ${env.MANAGE_ADDRESS}\nBroadcast: ${env.UPDATE_ADDRESS}\nOnly approved authenticated mail to the update address broadcasts. Success returns a confirmation. Provider restrictions require recovery review.`,
           );
       }
     }
     const failed = lines.some((l) => l.error);
-    const payload = [...outputs, ...(failed ? [results.join("\n")] : [])].join(
-      "\n\n",
+    const changed = lines.some((l) =>
+      ["add", "remove", "pause", "resume"].includes(l.command ?? ""),
     );
+    const payload = [
+      ...outputs,
+      ...(failed || changed ? [results.join("\n")] : []),
+    ].join("\n\n");
     const mutations = addresses.map((email) => map.get(email)!);
     const t = now.getTime();
     try {

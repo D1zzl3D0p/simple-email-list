@@ -36,9 +36,15 @@ const variants = {
   signedCc: {},
   missingMessageId: {},
   emptyMessageId: {},
+  longLineSignature: {},
 };
 for (const [name, change] of Object.entries(variants)) {
   let raw = message;
+  if (name === "longLineSignature")
+    raw = raw.replace(
+      "Only the signed content is authorized.",
+      "x".repeat(70000),
+    );
   if (name === "missingMessageId")
     raw = raw.replace("Message-ID: <dkim-fixture@example.com>\r\n", "");
   if (name === "emptyMessageId")
@@ -69,7 +75,8 @@ for (const [name, change] of Object.entries(variants)) {
     ],
   });
   if (result.errors.length) throw Error(`Fixture signing failed: ${name}`);
-  fixtures[name] = result.signatures + raw;
+  fixtures[name] =
+    name === "longLineSignature" ? result.signatures : result.signatures + raw;
 }
 writeFileSync(
   new URL("../tests/fixtures/dkim.json", import.meta.url),

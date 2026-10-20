@@ -1,9 +1,8 @@
-import { receiveEmail } from "./inbound";
 import type { Env } from "./types";
 import { handleSignup, signupPage } from "./signup";
 import { handleUnsubscribe, handleResubscribe } from "./unsubscribe";
 import { htmlResponse } from "./util";
-import { runScheduled } from "./delivery";
+import { queueReceipt, recoverReceiptJobs, handleJobs } from "./jobs";
 import { handleSnsEvents } from "./events";
 import { handleAdmin } from "./pages";
 export default {
@@ -26,7 +25,7 @@ export default {
   },
   async email(message: ForwardableEmailMessage, env: Env) {
     try {
-      await receiveEmail(message, env);
+      await queueReceipt(message, env);
     } catch (error) {
       console.error(JSON.stringify({ code: "receipt_failed" }));
       message.setReject(
@@ -35,6 +34,16 @@ export default {
     }
   },
   async scheduled(controller: ScheduledController, env: Env) {
-    await runScheduled(env, new Date(controller.scheduledTime));
+    await recoverReceiptJobs(env, new Date(controller.scheduledTime));
+    // Separate queue invocations keep historical page preparation within its
+    // own D1 query allowance instead of spending the delivery job's budget.
+    await env.JOBS.sendBatch([
+      { body: { type: "scheduled" } },
+      { body: { type: "archives" } },
+      { body: { type: "summaries" } },
+    ]);
+  },
+  async queue(batch: MessageBatch<unknown>, env: Env) {
+    await handleJobs(batch, env);
   },
 };

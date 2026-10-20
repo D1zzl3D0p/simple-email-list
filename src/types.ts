@@ -21,9 +21,6 @@ export interface Env extends RuntimeBindings {
   TURNSTILE_SECRET: string;
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
-  CLOUDFLARE_EXPORT_TOKEN: string;
-  CLOUDFLARE_ACCOUNT_ID: string;
-  CLOUDFLARE_DATABASE_ID: string;
 }
 export interface Settings {
   id: number;
@@ -56,6 +53,7 @@ export interface Snapshot {
   delivered: number;
   uncertain: number;
   held: number;
+  receipts_pending: number;
   oldest: number | null;
   attempts: number;
   newsletter_attempts: number;

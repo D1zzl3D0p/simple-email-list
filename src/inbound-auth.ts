@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { Readable } from "node:stream";
 import { dkimVerify } from "mailauth/lib/dkim/verify";
 import { addressParser } from "postal-mime";
 import { boundedBytes } from "./util";
@@ -186,7 +187,10 @@ export async function authenticateDkim(
       return false;
     let lookups = 0;
     const result = await dkimVerify(
-      Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength),
+      // The input is already bounded and fully buffered. The verifier's Buffer
+      // adapter slices it into 64 KiB chunks, repeatedly joining/scanning a long
+      // unfinished line. Its stream adapter preserves this single bounded chunk.
+      Readable.from([Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)]),
       {
         strict: true,
         minBitLength: 1024,

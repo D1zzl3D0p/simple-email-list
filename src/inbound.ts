@@ -5,9 +5,15 @@ import type { Clock, Env } from "./types";
 import { applyCommands, parseCommands } from "./commands";
 import { finishRun } from "./incidents";
 import { authenticateDkim } from "./inbound-auth";
+import { readBody } from "./body";
+import { storeArchivePage } from "./archive";
+export type ReceivedMessage = Pick<
+  ForwardableEmailMessage,
+  "from" | "to" | "raw" | "rawSize" | "headers" | "setReject"
+>;
 export interface ReceiptDependencies {
   authenticate: (
-    message: ForwardableEmailMessage,
+    message: ReceivedMessage,
     raw: Uint8Array,
     visibleSender: string,
   ) => Promise<boolean>;
@@ -20,7 +26,7 @@ const defaultDependencies: ReceiptDependencies = {
   clock: () => new Date(),
 };
 export async function receiveEmail(
-  message: ForwardableEmailMessage,
+  message: ReceivedMessage,
   env: Env,
   deps = defaultDependencies,
 ): Promise<void> {
@@ -59,13 +65,18 @@ export async function receiveEmail(
     )
   )
     throw Error("Automatic replies and mailing-list input are not accepted");
-  const p = await parseMail(raw);
+  const p = await parseMail(raw, header);
   const rawHash = await sha256(raw);
   const key = `raw/${rawHash}.eml`;
   const id = `${role}:${rawHash}`;
   await env.ARCHIVE.put(key, raw, {
     httpMetadata: { contentType: "message/rfc822" },
   });
+  const textKey = p.text.length > 8192 ? `text/${p.fingerprint}.txt` : null;
+  if (textKey)
+    await env.ARCHIVE.put(textKey, p.text, {
+      httpMetadata: { contentType: "text/plain; charset=utf-8" },
+    });
   const messageId = p.parsed.messageId?.trim() || null;
   const existing = messageId
     ? await stmt(
@@ -89,6 +100,7 @@ export async function receiveEmail(
       : role === "broadcast" && !p.subject
         ? "Missing subject"
         : null;
+  const archiveKey = await storeArchivePage(env, id, p.subject, p.text);
   const now = deps.clock().getTime();
   // A racing identity insert is re-evaluated within this statement, rather than acknowledged and lost.
   await env.DB.batch([
@@ -102,8 +114,8 @@ export async function receiveEmail(
     ),
     stmt(
       env.DB,
-      `INSERT OR IGNORE INTO inbound_messages(id,role,raw_key,raw_hash,sender,message_id,fingerprint,subject,text,received_at,state,held_reason,run_id)
-      SELECT ?,?,?,?,?,?,?,?,?,?,CASE WHEN ? IS NOT NULL OR EXISTS(SELECT 1 FROM inbound_messages WHERE role=? AND sender=? AND message_id=? AND fingerprint!=?) THEN 'held' ELSE 'pending' END,?,?
+      `INSERT OR IGNORE INTO inbound_messages(id,role,raw_key,raw_hash,sender,message_id,fingerprint,subject,text,text_key,archive_key,received_at,state,held_reason,run_id)
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ? IS NOT NULL OR EXISTS(SELECT 1 FROM inbound_messages WHERE role=? AND sender=? AND message_id=? AND fingerprint!=?) THEN 'held' ELSE 'pending' END,?,?
       WHERE NOT EXISTS(SELECT 1 FROM inbound_messages WHERE role=? AND sender=? AND message_id=? AND fingerprint=?)`,
       id,
       role,
@@ -113,7 +125,9 @@ export async function receiveEmail(
       messageId,
       p.fingerprint,
       p.subject,
-      p.text,
+      textKey ? "" : p.text,
+      textKey,
+      archiveKey,
       now,
       reason,
       role,
@@ -140,10 +154,15 @@ export async function receiveEmail(
 export async function processPendingCommands(env: Env, now: Date, id?: string) {
   const pending = await stmt(
     env.DB,
-    "SELECT id,sender,text FROM inbound_messages WHERE role='command' AND state='pending' AND (? IS NULL OR id=?) ORDER BY received_at,id LIMIT 1",
+    "SELECT id,sender,text,text_key FROM inbound_messages WHERE role='command' AND state='pending' AND (? IS NULL OR id=?) ORDER BY received_at,id LIMIT 1",
     id ?? null,
     id ?? null,
-  ).first<{ id: string; sender: string; text: string }>();
+  ).first<{
+    id: string;
+    sender: string;
+    text: string;
+    text_key: string | null;
+  }>();
   if (!pending) return;
   const settings = await getSettings(env.DB);
   await applyCommands(
@@ -153,7 +172,7 @@ export async function processPendingCommands(env: Env, now: Date, id?: string) {
       email: pending.sender,
       role: pending.sender === settings.missionary ? "missionary" : "owner",
     },
-    parseCommands(pending.text),
+    parseCommands(await readBody(env, pending)),
     now,
   );
 }

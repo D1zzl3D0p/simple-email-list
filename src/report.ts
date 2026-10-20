@@ -51,19 +51,19 @@ export async function ensureWeeklyReport(env: Env, now: Date): Promise<void> {
     `weekly:${week.key}`,
   ).run();
 }
-export async function buildSnapshot(env: Env, now: Date): Promise<Snapshot> {
-  type StoredSnapshot = Omit<
-    Snapshot,
-    | "warnings"
-    | "newsletter_limit"
-    | "total_limit"
-    | "newsletter_remaining"
-    | "total_remaining"
-    | "oldest_age_hours"
-    | "projected_hours"
-    | "weekly_capacity"
-  >;
-  const snapshot = await stmt(
+export type StoredSnapshot = Omit<
+  Snapshot,
+  | "warnings"
+  | "newsletter_limit"
+  | "total_limit"
+  | "newsletter_remaining"
+  | "total_remaining"
+  | "oldest_age_hours"
+  | "projected_hours"
+  | "weekly_capacity"
+>;
+export function snapshotStatement(env: Env, now: Date) {
+  return stmt(
     env.DB,
     `SELECT
   (SELECT count(*) FROM subscribers WHERE status='active') active,
@@ -72,7 +72,8 @@ export async function buildSnapshot(env: Env, now: Date): Promise<Snapshot> {
   (SELECT count(*) FROM outbox WHERE state='accepted') accepted,
   (SELECT count(*) FROM outbox WHERE state='delivered') delivered,
   (SELECT count(*) FROM outbox WHERE state='review_required') uncertain,
-  (SELECT count(*) FROM inbound_messages WHERE state='held') held,
+  (SELECT count(*) FROM inbound_messages WHERE state='held')+(SELECT count(*) FROM receipt_jobs WHERE state='held') held,
+  (SELECT count(*) FROM receipt_jobs WHERE state IN ('pending','processing')) receipts_pending,
   (SELECT min(created_at) FROM outbox WHERE state IN ('pending','retry_wait')) oldest,
   (SELECT count(*) FROM send_attempts WHERE reserved_at>?) attempts,
   (SELECT count(*) FROM send_attempts WHERE reserved_at>? AND kind='newsletter') newsletter_attempts,
@@ -91,7 +92,20 @@ export async function buildSnapshot(env: Env, now: Date): Promise<Snapshot> {
     now.getTime() - 7 * 86400000,
     now.getTime() - 7 * 86400000,
     now.getTime(),
-  ).first<StoredSnapshot>();
+  );
+}
+export async function buildSnapshot(env: Env, now: Date): Promise<Snapshot> {
+  return completeSnapshot(
+    env,
+    now,
+    await snapshotStatement(env, now).first<StoredSnapshot>(),
+  );
+}
+export function completeSnapshot(
+  env: Env,
+  now: Date,
+  snapshot: StoredSnapshot | null,
+): Snapshot {
   if (!snapshot) throw Error("Snapshot unavailable");
   const warnings: string[] = [];
   if (snapshot.oldest !== null && snapshot.oldest < now.getTime() - 172800000)
@@ -153,5 +167,5 @@ export async function buildSnapshot(env: Env, now: Date): Promise<Snapshot> {
   };
 }
 export function formatSnapshot(s: Snapshot) {
-  return `Active: ${s.active}\nProvider suppressions: ${s.suppressed}\nJoined / changed in past 7 days: ${s.joined_week} / ${s.changed_week}\nUpdates / newsletter demand in past 7 days: ${s.updates_week} / ${s.demand_week}\nPending: ${s.pending}\nOldest pending age: ${s.oldest_age_hours === null ? "none" : s.oldest_age_hours.toFixed(1) + " hours"}\nProjected completion (best-case scheduled capacity): ${s.projected_hours === null ? "blocked by pause, review or unverified quota" : s.projected_hours.toFixed(1) + " hours"}\nAccepted: ${s.accepted}\nDelivered: ${s.delivered}\nUncertain: ${s.uncertain}\nHeld inputs: ${s.held}\nRolling 24h attempts: ${s.attempts} (${s.newsletter_attempts} newsletters)\nNewsletter budget: ${s.newsletter_attempts}/${s.newsletter_limit}; remaining ${s.newsletter_remaining}\nTotal budget: ${s.attempts}/${s.total_limit}; remaining ${s.total_remaining}\nConfigured weekly capacity (upper estimate): ${s.weekly_capacity}\nQuota cooldown: ${s.quota_retry_at ? new Date(s.quota_retry_at).toISOString() : "none"}\nNewsletter paused: ${!!s.paused}\nTransport fault: ${s.transport_paused ?? "none"}\nValidation service faults: ${s.validation_faults}\nUnreported incidents: ${s.incidents}\n${s.warnings.join("\n")}`;
+  return `Active: ${s.active}\nProvider suppressions: ${s.suppressed}\nJoined / changed in past 7 days: ${s.joined_week} / ${s.changed_week}\nUpdates / newsletter demand in past 7 days: ${s.updates_week} / ${s.demand_week}\nPending: ${s.pending}\nOldest pending age: ${s.oldest_age_hours === null ? "none" : s.oldest_age_hours.toFixed(1) + " hours"}\nProjected completion (best-case scheduled capacity): ${s.projected_hours === null ? "blocked by pause, review or unverified quota" : s.projected_hours.toFixed(1) + " hours"}\nAccepted: ${s.accepted}\nDelivered: ${s.delivered}\nUncertain: ${s.uncertain}\nIncoming messages awaiting processing: ${s.receipts_pending}\nHeld inputs: ${s.held}\nRolling 24h attempts: ${s.attempts} (${s.newsletter_attempts} newsletters)\nNewsletter budget: ${s.newsletter_attempts}/${s.newsletter_limit}; remaining ${s.newsletter_remaining}\nTotal budget: ${s.attempts}/${s.total_limit}; remaining ${s.total_remaining}\nConfigured weekly capacity (upper estimate): ${s.weekly_capacity}\nQuota cooldown: ${s.quota_retry_at ? new Date(s.quota_retry_at).toISOString() : "none"}\nNewsletter paused: ${!!s.paused}\nTransport fault: ${s.transport_paused ?? "none"}\nValidation service faults: ${s.validation_faults}\nUnreported incidents: ${s.incidents}\n${s.warnings.join("\n")}`;
 }
