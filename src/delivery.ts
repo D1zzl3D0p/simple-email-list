@@ -237,8 +237,8 @@ async function drain(
         leave = `${env.PUBLIC_URL}/unsubscribe?token=${encodeURIComponent(await capability(env, "leave", w.subscriber_id, w.generation))}`;
         content = w.is_welcome
           ? {
-              text: `${text}\n\nPersonal unsubscribe: ${leave}`,
-              html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><p><a href="${escapeHtml(leave)}">Personal unsubscribe</a></p>`,
+              text: `${text}\n\nUnsubscribe: ${leave}`,
+              html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><p><a href="${escapeHtml(leave)}">Unsubscribe</a></p>`,
             }
           : newsletterContent(text, w.album_url, env.PUBLIC_URL, leave);
       }

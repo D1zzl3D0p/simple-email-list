@@ -8,7 +8,7 @@ Subscribers join through a simple web form. An approved sender emails the update
 
 - Web signup with Cloudflare Turnstile, welcome mail, personal unsubscribe links, and scoped undo links.
 - Success confirmations and final newsletter outcome summaries.
-- Email management commands: `add`, `remove`, `full`, `status`, `pause`, `resume`, and `help`.
+- Email management commands: `add`, `remove`, `full`, `dump emails`, `status`, `pause`, `resume`, and `help`. `full` returns active subscribers; `dump emails` returns all saved addresses with their subscription status to the approved administrator.
 - DKIM verification of approved senders before processing incoming updates or commands.
 - A durable D1 outbox with paced, single-recipient Amazon SES delivery and signed SNS event handling for delivery, bounces, and complaints.
 - Private R2 archives, a Cloudflare Access-protected dashboard, and built-in D1 Time Travel recovery.
@@ -47,6 +47,8 @@ The install script applies a version-checked compatibility patch to `mailauth` s
 Use `wrangler.jsonc` for local development and `wrangler.staging.jsonc` as a staging template. Every address, account ID, database ID, and hostname in the examples must be replaced with your own values. Keep local overrides in an ignored `wrangler.private*.jsonc` file and mailbox settings in an ignored `config/*.local.sql` file.
 
 You will need Cloudflare Workers, Email Routing, D1, private R2, a Queue, Turnstile, and Access, plus Amazon SES and an SNS event topic. Store credentials as Worker secrets, never in source. Complete the [deployment procedure](docs/operations.md) before enabling delivery.
+
+For production, set `STAGE` to `production`. Public signup requires both `SIGNUP_ENABLED=true` and `SENDING_ENABLED=true`; keep signup disabled while performing controlled delivery checks. Completed authenticated receipts notify the delivery scheduler immediately, with cron as a fallback. Apple Mail's trailing `<mailto:address>` annotation is accepted for add/remove commands only when it matches the displayed address.
 
 ## Project layout
 

@@ -154,6 +154,13 @@ export async function processReceiptJob(
     ).run();
     if (result.meta.changes) {
       console.log(JSON.stringify({ code: "receipt_complete", id }));
+      // Start delivery in its own invocation after authenticated intake commits.
+      // A failed notification leaves durable work for the regular cron fallback.
+      try {
+        await env.JOBS.send({ type: "scheduled" } satisfies BackgroundJob);
+      } catch {
+        console.error(JSON.stringify({ code: "delivery_signal_failed", id }));
+      }
       // receiveEmail has already durably archived the canonical raw original.
       // Cleanup failure is harmless; its key remains recorded for recovery.
       try {

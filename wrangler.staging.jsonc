@@ -42,6 +42,7 @@
     }
   },
   "vars": {
+    "SIGNUP_ENABLED": "true",
     "SENDING_ENABLED": "false",
     "STAGE": "staging",
     "PUBLIC_URL": "https://staging.example.com",

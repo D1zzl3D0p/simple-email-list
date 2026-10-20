@@ -29,6 +29,59 @@ async function inbound(id = "in") {
     .bind(id, id, id)
     .run();
 }
+
+test("dump emails returns all saved members with status only to the admin and deduplicates retries", async () => {
+  await inbound();
+  await env.DB.prepare(
+    "INSERT INTO subscribers(id,email,status,created_at,updated_at,source,consent_version) VALUES('z','z@example.com','active',0,0,'signup','v1'),('a','a@example.com','unsubscribed',0,0,'signup','v1')",
+  ).run();
+  const lines = parseCommands("`DuMp   EmAiLs`");
+  await applyCommands(testEnv(), "in", admin, lines, now);
+  await applyCommands(testEnv(), "in", admin, lines, now);
+  const replies = await env.DB.prepare(
+    "SELECT recipient,text FROM outbox",
+  ).all();
+  expect(replies.results).toEqual([
+    {
+      recipient: "missionary@example.com",
+      text: "a@example.com (unsubscribed)\nz@example.com (active)",
+    },
+  ]);
+  expect(
+    await env.DB.prepare("SELECT status FROM subscribers WHERE id='a'").first(
+      "status",
+    ),
+  ).toBe("unsubscribed");
+});
+test("dump reports an empty list and help advertises the command", async () => {
+  await inbound();
+  await applyCommands(testEnv(), "in", admin, parseCommands("dump\nhelp"), now);
+  const output = await env.DB.prepare("SELECT text FROM outbox").first<string>(
+    "text",
+  );
+  expect(output).toContain("No saved subscribers");
+  expect(output).toContain("dump emails");
+});
+test("dump refuses a truncated list when more than five thousand members are saved", async () => {
+  await inbound();
+  await env.DB.prepare(
+    "INSERT INTO subscribers(id,email,status,created_at,updated_at,source,consent_version) SELECT 'member'||value,'reader'||value||'@example.com','unsubscribed',0,0,'signup','v1' FROM json_each(?)",
+  )
+    .bind(JSON.stringify(Array.from({ length: 5001 }, (_, i) => i)))
+    .run();
+  await applyCommands(
+    testEnv(),
+    "in",
+    admin,
+    parseCommands("dump emails"),
+    now,
+  );
+  const output = await env.DB.prepare("SELECT text FROM outbox").first<string>(
+    "text",
+  );
+  expect(output).toContain("too large");
+  expect(output).not.toContain("reader0@example.com");
+});
 test("optional matching backticks and quoted history/signature boundaries", () => {
   expect(
     parseCommands(
@@ -42,6 +95,47 @@ test("optional matching backticks and quoted history/signature boundaries", () =
     parseCommands("help\nOn Monday someone wrote:\nadd ignored@example.com"),
   ).toHaveLength(1);
 });
+test("matching mailto annotations from rich-text email apply add and remove commands", async () => {
+  await inbound();
+  await applyCommands(
+    testEnv(),
+    "in",
+    admin,
+    parseCommands(
+      "Add Friend@example.com <mailto:friend@example.com>\n`remove former@example.com <MAILTO:Former@example.com>`",
+    ),
+    now,
+  );
+  expect(
+    (
+      await env.DB.prepare(
+        "SELECT email,status FROM subscribers ORDER BY email",
+      ).all()
+    ).results,
+  ).toEqual([
+    { email: "former@example.com", status: "unsubscribed" },
+    { email: "friend@example.com", status: "active" },
+  ]);
+  expect(await env.DB.prepare("SELECT text FROM outbox").first("text")).toBe(
+    "1. Added friend@example.com\n2. Removed former@example.com",
+  );
+});
+
+test.each([
+  "add shown@example.com <mailto:other@example.com>",
+  "add shown@example.com <mailto:shown@example.com> extra",
+  "add shown@example.com <mailto:shown@example.com> <mailto:other@example.com>",
+])("ambiguous email annotations do not mutate membership: %s", async (body) => {
+  await inbound();
+  await applyCommands(testEnv(), "in", admin, parseCommands(body), now);
+  expect(
+    await env.DB.prepare("SELECT count(*) n FROM subscribers").first("n"),
+  ).toBe(0);
+  expect(
+    await env.DB.prepare("SELECT text FROM outbox").first("text"),
+  ).toContain("Failed:");
+});
+
 test("ordered repeated mutations reply once, dedup does not reapply", async () => {
   await inbound();
   const lines = parseCommands(

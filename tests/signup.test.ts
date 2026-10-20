@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, expect, test, vi } from "vitest";
-import { handleSignup } from "../src/signup";
+import { handleSignup, signupPage } from "../src/signup";
 import { runScheduled } from "../src/delivery";
 import type { OutgoingMail } from "../src/types";
 import { testEnv, now } from "./helpers";
@@ -23,6 +23,88 @@ function challenge(
 ) {
   vi.stubGlobal("fetch", async () => Response.json(data));
 }
+
+test("production prelaunch page hides signup and challenge until sending opens", () => {
+  const page = signupPage({
+    ...testEnv(),
+    STAGE: "production",
+    SENDING_ENABLED: "false",
+  });
+  expect(page).toContain("Mission Newsletter");
+  expect(page).toContain("Signup opens soon. Please check back.");
+  expect(page).not.toContain("<form");
+  expect(page).not.toContain("cf-turnstile");
+  expect(page).not.toContain("challenges.cloudflare.com");
+  expect(page).not.toContain("/signup.js");
+});
+
+test("production prelaunch rejects signup before validation or persistence", async () => {
+  const validation = vi.fn(async () =>
+    Response.json({
+      success: true,
+      hostname: "mission.example.com",
+      action: "subscribe",
+    }),
+  );
+  vi.stubGlobal("fetch", validation);
+  const response = await handleSignup(
+    request(),
+    {
+      ...testEnv(),
+      STAGE: "production",
+      SENDING_ENABLED: "false",
+    },
+    now,
+  );
+  expect(response.status).toBe(503);
+  expect(response.headers.get("Retry-After")).toBe("3600");
+  expect(await response.text()).toContain(
+    "Signup opens soon. Please check back.",
+  );
+  expect(validation).not.toHaveBeenCalled();
+  for (const table of ["subscribers", "outbox", "rate_counters"]) {
+    expect(
+      await env.DB.prepare("SELECT count(*) n FROM " + table).first("n"),
+    ).toBe(0);
+  }
+});
+
+test("production delivery can run while public signup stays closed", async () => {
+  challenge();
+  const options = {
+    ...testEnv(),
+    STAGE: "production",
+    SENDING_ENABLED: "true",
+    SIGNUP_ENABLED: "false",
+  };
+  expect(signupPage(options)).not.toContain("<form");
+  const response = await handleSignup(request(), options, now);
+  expect(response.status).toBe(503);
+  expect(
+    await env.DB.prepare("SELECT count(*) n FROM subscribers").first("n"),
+  ).toBe(0);
+  expect(await env.DB.prepare("SELECT count(*) n FROM outbox").first("n")).toBe(
+    0,
+  );
+});
+
+test.each(["local", "staging", "production"] as const)(
+  "%s keeps signup open when its launch condition allows it",
+  async (stage) => {
+    challenge();
+    const options = {
+      ...testEnv(),
+      STAGE: stage,
+      SENDING_ENABLED: stage === "production" ? "true" : "false",
+    };
+    expect(signupPage(options)).toContain("<form");
+    const response = await handleSignup(request(), options, now);
+    expect(response.status).toBe(200);
+    expect(
+      await env.DB.prepare("SELECT status FROM subscribers").first("status"),
+    ).toBe("active");
+  },
+);
 test("valid immediate activation queues one welcome and repeat signup does not resend", async () => {
   challenge();
   expect((await handleSignup(request(), testEnv(), now)).status).toBe(200);
@@ -139,7 +221,7 @@ test("welcome sends through newsletter pause with an unsubscribe link", async ()
   expect(welcome?.subject).toContain("Welcome");
   expect(welcome?.text).toContain("Your signup is complete");
   expect(welcome?.unsubscribe).toContain("/unsubscribe?token=");
-  expect(welcome?.html).toContain("Personal unsubscribe");
+  expect(welcome?.html).toContain("Unsubscribe");
   expect(welcome?.text).not.toContain("Photos: null");
 });
 test("concurrent public signups enqueue only one welcome", async () => {

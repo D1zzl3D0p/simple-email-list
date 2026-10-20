@@ -5,7 +5,8 @@ import { normalizeAddress } from "./signup";
 import { buildSnapshot, formatSnapshot } from "./report";
 export interface CommandLineResult {
   line: number;
-  command?: "add" | "remove" | "full" | "status" | "pause" | "resume" | "help";
+  command?:
+    "add" | "remove" | "dump" | "full" | "status" | "pause" | "resume" | "help";
   address?: string;
   error?: string;
 }
@@ -36,12 +37,15 @@ export function parseCommands(text: string): CommandLineResult[] {
       !line.slice(1, -1).includes("`")
     )
       line = line.slice(1, -1).trim();
-    const match = /^(add|remove)\s+(\S+)$/i.exec(line);
+    const match = /^(add|remove)\s+(\S+)(?:\s+<mailto:([^<>\s]+)>)?$/i.exec(
+      line,
+    );
     const number = output.length + 1;
     if (match) {
       const address = normalizeAddress(match[2]);
+      const matchingLink = !match[3] || normalizeAddress(match[3]) === address;
       output.push(
-        address
+        address && matchingLink
           ? {
               line: number,
               command: match[1].toLowerCase() as "add" | "remove",
@@ -52,7 +56,9 @@ export function parseCommands(text: string): CommandLineResult[] {
               error: "Malformed email address; correct and retry this line",
             },
       );
-    } else if (/^(full|status|pause|resume|help)$/i.test(line))
+    } else if (/^dump(?:\s+emails)?$/i.test(line))
+      output.push({ line: number, command: "dump" });
+    else if (/^(full|status|pause|resume|help)$/i.test(line))
       output.push({
         line: number,
         command: line.toLowerCase() as CommandLineResult["command"],
@@ -98,9 +104,10 @@ export async function applyCommands(
       ...new Set(lines.flatMap((l) => (l.address ? [l.address] : []))),
     ];
     const wantsFull = lines.some((l) => l.command === "full");
+    const wantsDump = lines.some((l) => l.command === "dump");
     const members = await rows<Subscriber>(
       env.DB,
-      `SELECT id,email,status,generation,version FROM subscribers WHERE email IN (SELECT value FROM json_each(?)) ${wantsFull ? "OR status='active'" : ""} ORDER BY email LIMIT 5001`,
+      `SELECT id,email,status,generation,version FROM subscribers WHERE email IN (SELECT value FROM json_each(?)) ${wantsDump ? "OR 1=1" : wantsFull ? "OR status='active'" : ""} ORDER BY email LIMIT 5001`,
       JSON.stringify(addresses),
     );
     const map = new Map(members.map((m) => [m.email, { ...m }]));
@@ -158,11 +165,20 @@ export async function applyCommands(
                   .sort()
                   .join("\n") || "No active subscribers",
           );
+        if (command === "dump")
+          outputs.push(
+            members.length >= 5001
+              ? "Email list is too large to return by email (over 5000 saved addresses); ask the recovery admin for a database export."
+              : Array.from(map.values())
+                  .sort((a, b) => a.email.localeCompare(b.email))
+                  .map((m) => `${m.email} (${m.status})`)
+                  .join("\n") || "No saved subscribers",
+          );
         if (command === "status" && snapshot)
           outputs.push(formatSnapshot({ ...snapshot, paused }));
         if (command === "help")
           outputs.push(
-            `One command per line; optional matching backticks.\nadd address@example.com\nremove address@example.com\nfull\nstatus\npause\nresume\nhelp\n\nManage: ${env.MANAGE_ADDRESS}\nBroadcast: ${env.UPDATE_ADDRESS}\nOnly approved authenticated mail to the update address broadcasts. Success returns a confirmation. Provider restrictions require recovery review.`,
+            `One command per line; optional matching backticks.\nadd address@example.com\nremove address@example.com\nfull\ndump emails\nstatus\npause\nresume\nhelp\n\nfull lists active subscribers; dump emails lists all saved addresses with subscription status.\n\nManage: ${env.MANAGE_ADDRESS}\nBroadcast: ${env.UPDATE_ADDRESS}\nOnly approved authenticated mail to the update address broadcasts. Success returns a confirmation. Provider restrictions require recovery review.`,
           );
       }
     }

@@ -89,6 +89,22 @@ test("wrong purpose, tampering and method cannot mutate membership", async () =>
     ).status,
   ).toBe(405);
 });
+test("newsletter without an album omits Photos but preserves subscribe and leave links", () => {
+  const content = newsletterContent(
+    "Hello",
+    "",
+    "https://mission.example.com",
+    "https://mission.example.com/unsubscribe?token=test",
+  );
+  expect(content.text).not.toContain("Photos:");
+  expect(content.html).not.toContain("Google Photos album");
+  expect(content.html).not.toContain('href=""');
+  expect(content.text).toContain(
+    "Share / subscribe: https://mission.example.com",
+  );
+  expect(content.html).toContain("Unsubscribe");
+});
+
 test("share link is public and separate from personal unsubscribe", async () => {
   const t = await seed();
   const c = newsletterContent(
@@ -98,7 +114,7 @@ test("share link is public and separate from personal unsubscribe", async () => 
     env.PUBLIC_URL + "/unsubscribe?token=" + t,
   );
   expect(c.text).toContain("Share / subscribe: https://mission.example.com");
-  expect(c.text).toContain("\n\nPersonal unsubscribe:");
+  expect(c.text).toContain("\n\nUnsubscribe:");
   expect(c.html).toContain("&lt;reader&gt;");
   expect(c.html).not.toContain("<reader>");
 });

@@ -43,6 +43,7 @@
   "triggers": { "crons": ["*/15 * * * *"] },
   "observability": { "enabled": true, "traces": { "enabled": true } },
   "vars": {
+    "SIGNUP_ENABLED": "true",
     "SENDING_ENABLED": "false",
     "STAGE": "local",
     "PUBLIC_URL": "https://mission.example.com",

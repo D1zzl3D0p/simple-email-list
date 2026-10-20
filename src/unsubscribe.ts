@@ -143,9 +143,23 @@ export function newsletterContent(
   publicUrl: string,
   leave: string,
 ) {
-  const body = `${text}\n\nPhotos: ${album}\nShare / subscribe: ${publicUrl}\n\nPersonal unsubscribe: ${leave}`;
+  const photosText = album ? `Photos: ${album}\n` : "";
+  const linkStyle =
+    "color:#52637a;text-decoration:underline;white-space:nowrap;display:inline-block";
+  const footerLinks = [
+    ...(album
+      ? [
+          `<a style="${linkStyle}" href="${escapeHtml(album)}">Google Photos album</a>`,
+        ]
+      : []),
+    `<a style="${linkStyle}" href="${escapeHtml(publicUrl)}">Share / subscribe</a>`,
+    `<a style="${linkStyle}" href="${escapeHtml(leave)}">Unsubscribe</a>`,
+  ].join(
+    ' <span aria-hidden="true" style="color:#9ca3af;padding:0 8px">·</span> ',
+  );
+  const body = `${text}\n\n---\n\n${photosText}Share / subscribe: ${publicUrl}\n\nUnsubscribe: ${leave}`;
   return {
     text: body,
-    html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><p><a href="${escapeHtml(album)}">Google Photos album</a></p><p><a href="${escapeHtml(publicUrl)}">Share / subscribe</a></p><hr style="margin-top:32px"><p><a href="${escapeHtml(leave)}">Personal unsubscribe</a></p>`,
+    html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><hr style="margin:32px 0 20px;border:0;border-top:1px solid #e5e7eb"><p style="margin:0;text-align:center;font-family:Arial,sans-serif;font-size:13px;line-height:2">${footerLinks}</p>`,
   };
 }

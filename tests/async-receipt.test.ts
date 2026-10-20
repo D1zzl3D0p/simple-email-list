@@ -98,7 +98,8 @@ test("email intake durably queues raw mail before authentication or any actions"
 });
 
 test("signed queued mail authenticates and duplicate notifications process one operation", async () => {
-  const e = queuedEnv();
+  const messages: unknown[] = [];
+  const e = queuedEnv(messages);
   const id = await queueReceipt(mail(fixtures.valid, e.UPDATE_ADDRESS), e, now);
   await Promise.all([
     processReceiptJob(id, e, authenticated),
@@ -121,6 +122,28 @@ test("signed queued mail authenticates and duplicate notifications process one o
   ).first<string>("raw_key");
   expect(await (await env.ARCHIVE.get(rawKey!))!.text()).toBe(fixtures.valid);
   expect(await env.ARCHIVE.get(`receipts/${id}.eml`)).toBeNull();
+  expect(messages).toEqual([{ type: "receipt", id }, { type: "scheduled" }]);
+});
+
+test("delivery signal failure preserves completed receipt and pending newsletter", async () => {
+  const messages: unknown[] = [];
+  const e = queuedEnv(messages);
+  const id = await queueReceipt(mail(fixtures.valid, e.UPDATE_ADDRESS), e, now);
+  e.JOBS.send = async (body: unknown) => {
+    messages.push(body);
+    throw Error("queue unavailable");
+  };
+  await processReceiptJob(id, e, authenticated);
+  await processReceiptJob(id, e, authenticated);
+  expect(messages).toEqual([{ type: "receipt", id }, { type: "scheduled" }]);
+  expect(
+    await env.DB.prepare("SELECT state,attempts FROM receipt_jobs WHERE id=?")
+      .bind(id)
+      .first(),
+  ).toEqual({ state: "complete", attempts: 1 });
+  expect(
+    await env.DB.prepare("SELECT state FROM inbound_messages").first("state"),
+  ).toBe("pending");
 });
 
 test("failed queue notification remains durable and scheduled repair can complete it", async () => {
@@ -252,7 +275,8 @@ test("crashed exhausted receipts become held atomically without another processi
 });
 
 test("forged queued mail never applies actions and eventually becomes a durable held incident", async () => {
-  const e = queuedEnv();
+  const messages: unknown[] = [];
+  const e = queuedEnv(messages);
   const id = await queueReceipt(
     mail(fixtures.unsigned, e.UPDATE_ADDRESS),
     e,
@@ -283,6 +307,7 @@ test("forged queued mail never applies actions and eventually becomes a durable 
   const snapshot = await buildSnapshot(e, now);
   expect(snapshot.held).toBe(1);
   expect(snapshot.receipts_pending).toBe(0);
+  expect(messages).toEqual([{ type: "receipt", id }]);
 });
 
 test("active receipt lease blocks duplicates and an expired lease is recoverable", async () => {
