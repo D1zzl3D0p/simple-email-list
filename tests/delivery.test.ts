@@ -202,6 +202,71 @@ test("accepted SES followed by D1 failure retains reservation and never resubmit
     "review_required",
   );
 });
+test.each([
+  {
+    failure: new Error("cleanup offline"),
+    diagnostic: "Error: cleanup offline",
+  },
+  { failure: "cleanup offline", diagnostic: "NonError: cleanup offline" },
+  {
+    failure: { privateData: "do not serialize" },
+    diagnostic: "NonError: Non-Error value thrown",
+  },
+  {
+    failure: new Error("x".repeat(1000)),
+    diagnostic: "Error: " + "x".repeat(100),
+  },
+])(
+  "failure email includes processing stage and bounded exception: $diagnostic",
+  async ({ failure, diagnostic }) => {
+    await configure();
+    let fail = true;
+    const db = new Proxy(env.DB, {
+      get(t, k) {
+        if (k === "prepare")
+          return (sql: string) => {
+            if (fail && sql.startsWith("DELETE FROM rate_counters")) {
+              fail = false;
+              throw failure;
+            }
+            return t.prepare(sql);
+          };
+        const v = Reflect.get(t, k);
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+    const messages: string[] = [];
+    const d = deps();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(
+        runScheduled({ ...enabled(), DB: db }, now, {
+          ...d,
+          send: async (_env, mail) => {
+            messages.push(mail.text);
+            return { kind: "accepted", messageId: "summary" };
+          },
+        }),
+      ).rejects.toBe(failure);
+    } finally {
+      log.mockRestore();
+    }
+    const detail = await env.DB.prepare(
+      "SELECT detail FROM incidents WHERE code='scheduled_failed'",
+    ).first<string>("detail");
+    expect(detail).toContain("Stage: rate_counter_cleanup");
+    expect(detail).toContain(diagnostic);
+    expect(detail!.length).toBeLessThanOrEqual(500);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain(detail);
+    expect(messages[0]).not.toContain("do not serialize");
+    expect(
+      await env.DB.prepare("SELECT text FROM outbox WHERE is_summary=1").first(
+        "text",
+      ),
+    ).toBe(messages[0]);
+  },
+);
 test("600-member send batch stays under 40 D1 statements", async () => {
   await queue(600);
   let n = 0;

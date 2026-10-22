@@ -104,6 +104,16 @@ export async function runScheduled(
     stage = "delivery";
     await drain(env, now, holder, runId, d, 6, budget.remaining);
   } catch (error) {
+    // Share bounded diagnostics between the log and the durable email detail.
+    // Do not serialize arbitrary error properties, request data, or bindings.
+    const errorName =
+      error instanceof Error ? error.name.slice(0, 80) : "NonError";
+    const message =
+      error instanceof Error
+        ? error.message.slice(0, 500)
+        : typeof error === "string"
+          ? error.slice(0, 500)
+          : "Non-Error value thrown";
     console.error(
       JSON.stringify({
         code:
@@ -112,16 +122,8 @@ export async function runScheduled(
             : "scheduled_failed",
         runId,
         stage,
-        // Keep failure logging bounded; never serialize the error's arbitrary
-        // properties, request data, or environment bindings.
-        errorName:
-          error instanceof Error ? error.name.slice(0, 80) : "NonError",
-        message:
-          error instanceof Error
-            ? error.message.slice(0, 500)
-            : typeof error === "string"
-              ? error.slice(0, 500)
-              : "Non-Error value thrown",
+        errorName,
+        message,
       }),
     );
     if (
@@ -134,7 +136,7 @@ export async function runScheduled(
           runId,
           sourceKey: "run:" + runId,
           code: "scheduled_failed",
-          detail: "Scheduled processing failed; inspect durable records",
+          detail: `Stage: ${stage}\n${errorName}: ${message}`,
         },
         d.clock(),
       );
