@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { expect, test, beforeEach } from "vitest";
+import { expect, test, beforeEach, vi } from "vitest";
 import { runScheduled } from "../src/delivery";
 import { configure, testEnv, now } from "./helpers";
 import type { SendResult } from "../src/types";
@@ -179,9 +179,22 @@ test("accepted SES followed by D1 failure retains reservation and never resubmit
     },
   });
   const d = deps();
-  await expect(runScheduled({ ...enabled(), DB: db }, now, d)).rejects.toThrow(
-    "result persistence offline",
-  );
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(
+      runScheduled({ ...enabled(), DB: db }, now, d),
+    ).rejects.toThrow("result persistence offline");
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(log.mock.calls[0][0])).toEqual({
+      code: "scheduled_failed",
+      runId: expect.stringMatching(/^tick:/),
+      stage: "delivery",
+      errorName: "Error",
+      message: "result persistence offline",
+    });
+  } finally {
+    log.mockRestore();
+  }
   const later = new Date(now.getTime() + 3600000);
   await runScheduled(enabled(), later, { ...d, clock: () => later });
   expect(d.sent).toHaveLength(1);

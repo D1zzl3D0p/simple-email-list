@@ -65,33 +65,43 @@ export async function runScheduled(
   ).first();
   if (!lease) return;
   const runId = `tick:${holder}`;
+  let stage = "settings";
   try {
     const settings = await getSettings(env.DB);
+    stage = "start_run";
     await startRun(env, runId, settings.missionary, "scheduled", now);
+    stage = "expired_reservations";
     await stmt(
       env.DB,
       "UPDATE outbox SET state='review_required',last_error='Expired sending reservation; reconcile SES before retry' WHERE state='sending' AND lease_until<=?",
       t,
     ).run();
+    stage = "recover_runs";
     await recoverRuns(env, now);
+    stage = "weekly_report";
     if (budget.remaining() > 20) await ensureWeeklyReport(env, now);
+    stage = "pending_input";
     const pending = await env.DB.prepare(
       "SELECT role FROM inbound_messages WHERE state='pending' ORDER BY received_at,id LIMIT 1",
     ).first<{ role: string }>();
     if (budget.remaining() > 22) {
+      stage = pending?.role === "command" ? "commands" : "prepare_message";
       if (pending?.role === "command") await processPendingCommands(env, now);
       else await prepareNextMessage(env, now);
     }
+    stage = "rate_counter_cleanup";
     await stmt(
       env.DB,
       "DELETE FROM rate_counters WHERE expires_at<=?",
       t,
     ).run();
+    stage = "cancel_ineligible_deliveries";
     await stmt(
       env.DB,
       "UPDATE outbox SET state='cancelled' WHERE kind='newsletter' AND state IN ('pending','retry_wait') AND (NOT EXISTS(SELECT 1 FROM subscribers s WHERE s.id=outbox.subscriber_id AND s.status='active' AND s.generation=outbox.generation) OR EXISTS(SELECT 1 FROM suppressions x WHERE x.email=outbox.recipient))",
     ).run();
     if (env.SENDING_ENABLED !== "true" || settings.transport_paused) return;
+    stage = "delivery";
     await drain(env, now, holder, runId, d, 6, budget.remaining);
   } catch (error) {
     console.error(
@@ -101,6 +111,17 @@ export async function runScheduled(
             ? "notification_processing_failed"
             : "scheduled_failed",
         runId,
+        stage,
+        // Keep failure logging bounded; never serialize the error's arbitrary
+        // properties, request data, or environment bindings.
+        errorName:
+          error instanceof Error ? error.name.slice(0, 80) : "NonError",
+        message:
+          error instanceof Error
+            ? error.message.slice(0, 500)
+            : typeof error === "string"
+              ? error.slice(0, 500)
+              : "Non-Error value thrown",
       }),
     );
     if (
