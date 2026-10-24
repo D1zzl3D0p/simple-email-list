@@ -6,7 +6,7 @@ on:
     paths-ignore:
       - docs/**
       - README.md
-      - .github/workflows/deploy.yml
+      - .github/workflows/**
   workflow_dispatch:
     inputs:
       environment:
@@ -52,7 +52,17 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { writeFileSync } from 'node:fs';
+          import ts from 'typescript';
           if (!process.env.DEPLOY_CONFIG) throw new Error('Missing private Wrangler configuration secret');
+          const parsed = ts.parseConfigFileTextToJson('deploy.jsonc', process.env.DEPLOY_CONFIG);
+          if (parsed.error) throw new Error('Invalid private Wrangler configuration');
+          function mask(value) {
+            if (typeof value === 'string' && value.length >= 3) {
+              console.log(`::add-mask::${value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
+              try { const decoded = JSON.parse(value); if (typeof decoded === 'object' && decoded) mask(decoded); } catch {}
+            } else if (value && typeof value === 'object') Object.values(value).forEach(mask);
+          }
+          mask(parsed.config);
           writeFileSync(`wrangler.${process.env.DEPLOY_ENVIRONMENT}.jsonc`, process.env.DEPLOY_CONFIG, { mode: 0o600 });
           NODE
       - name: Check target bundle
@@ -83,7 +93,17 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { writeFileSync } from 'node:fs';
+          import ts from 'typescript';
           if (!process.env.DEPLOY_CONFIG) throw new Error('Missing private Wrangler configuration secret');
+          const parsed = ts.parseConfigFileTextToJson('deploy.jsonc', process.env.DEPLOY_CONFIG);
+          if (parsed.error) throw new Error('Invalid private Wrangler configuration');
+          function mask(value) {
+            if (typeof value === 'string' && value.length >= 3) {
+              console.log(`::add-mask::${value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
+              try { const decoded = JSON.parse(value); if (typeof decoded === 'object' && decoded) mask(decoded); } catch {}
+            } else if (value && typeof value === 'object') Object.values(value).forEach(mask);
+          }
+          mask(parsed.config);
           writeFileSync(`wrangler.${process.env.DEPLOY_ENVIRONMENT}.jsonc`, process.env.DEPLOY_CONFIG, { mode: 0o600 });
           NODE
       - name: Deploy Worker
