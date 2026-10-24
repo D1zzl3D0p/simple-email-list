@@ -28,6 +28,7 @@ concurrency:
 env:
   CI: "true"
   WRANGLER_SEND_METRICS: "false"
+  WRANGLER_LOG: error
 
 jobs:
   check:
@@ -68,7 +69,7 @@ jobs:
       - name: Check target bundle
         env:
           DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
-        run: npx --no-install wrangler deploy --config "wrangler.${DEPLOY_ENVIRONMENT}.jsonc" --dry-run --log-level error
+        run: npx --no-install wrangler deploy --config "wrangler.${DEPLOY_ENVIRONMENT}.jsonc" --dry-run
 
   deploy:
     needs: check
@@ -114,7 +115,7 @@ jobs:
             echo "::error::Set the CLOUDFLARE_API_TOKEN Actions secret before deploying."
             exit 1
           fi
-          npx --no-install wrangler deploy --config "wrangler.${DEPLOY_ENVIRONMENT}.jsonc" --log-level error
+          npx --no-install wrangler deploy --config "wrangler.${DEPLOY_ENVIRONMENT}.jsonc"
       - name: Verify deployed HTTP endpoints
         run: |
           node --input-type=module <<'NODE'
