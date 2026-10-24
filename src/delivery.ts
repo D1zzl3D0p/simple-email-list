@@ -4,7 +4,13 @@ import { sendSes } from "./ses";
 import { capability, newsletterContent } from "./unsubscribe";
 import { escapeHtml } from "./util";
 import { prepareNextMessage } from "./mail";
-import { startRun, finishRun, recoverRuns, recordIncident } from "./incidents";
+import {
+  startRun,
+  finishRun,
+  recoverRuns,
+  recordIncident,
+  refreshFailureSummary,
+} from "./incidents";
 import { ensureWeeklyReport } from "./report";
 import { processPendingCommands } from "./inbound";
 import { readBody } from "./body";
@@ -45,7 +51,7 @@ export async function runScheduled(
   env: Env,
   now: Date,
   deps?: DeliveryDependencies,
-): Promise<void> {
+): Promise<boolean> {
   const budget = invocationDatabase(env.DB);
   env = { ...env, DB: budget.db };
   const started = Date.now();
@@ -63,9 +69,10 @@ export async function runScheduled(
     t + 300000,
     t,
   ).first();
-  if (!lease) return;
+  if (!lease) return false;
   const runId = `tick:${holder}`;
   let stage = "settings";
+  let attempts = 0;
   try {
     const settings = await getSettings(env.DB);
     stage = "start_run";
@@ -100,9 +107,10 @@ export async function runScheduled(
       env.DB,
       "UPDATE outbox SET state='cancelled' WHERE kind='newsletter' AND state IN ('pending','retry_wait') AND (NOT EXISTS(SELECT 1 FROM subscribers s WHERE s.id=outbox.subscriber_id AND s.status='active' AND s.generation=outbox.generation) OR EXISTS(SELECT 1 FROM suppressions x WHERE x.email=outbox.recipient))",
     ).run();
-    if (env.SENDING_ENABLED !== "true" || settings.transport_paused) return;
+    if (env.SENDING_ENABLED !== "true" || settings.transport_paused)
+      return false;
     stage = "delivery";
-    await drain(env, now, holder, runId, d, 6, budget.remaining);
+    attempts = await drain(env, now, holder, runId, d, 6, budget.remaining);
   } catch (error) {
     // Share bounded diagnostics between the log and the durable email detail.
     // Do not serialize arbitrary error properties, request data, or bindings.
@@ -165,6 +173,7 @@ export async function runScheduled(
       ).run();
     }
   }
+  return attempts > 0;
 }
 
 async function drain(
@@ -176,7 +185,7 @@ async function drain(
   limit: number,
   remaining: () => number,
   onlyId?: string,
-) {
+): Promise<number> {
   const t = now.getTime();
   const settings = await getSettings(env.DB);
   if (
@@ -184,7 +193,7 @@ async function drain(
     settings.transport_paused ||
     (settings.quota_retry_at ?? 0) > d.clock().getTime()
   )
-    return;
+    return 0;
   const quota = Number(env.SES_DAILY_QUOTA),
     rate = Number(env.SES_RATE);
   if (
@@ -193,7 +202,7 @@ async function drain(
     !Number.isFinite(rate) ||
     rate <= 0
   )
-    return;
+    return 0;
   // Six ordinary attempts leave room for preparation, completion reporting and maintenance below 40 D1 statements.
   const work = await rows<Work>(
     env.DB,
@@ -208,12 +217,13 @@ async function drain(
     limit,
   );
   let last = 0;
+  let attempts = 0;
   for (const w of work) {
     try {
       if (remaining() < 12 || d.clock().getTime() >= t + 180000) break;
       // Resolve before reservation: missing storage must not create an uncertain
       // SES attempt. Keep inline historical messages on the existing path.
-      const text = await readBody(env, w);
+      let text = await readBody(env, w);
       const lastReservation =
         last ||
         Number(
@@ -225,6 +235,15 @@ async function drain(
       const delay =
         lastReservation + Math.ceil(1000 / rate) - d.clock().getTime();
       if (delay > 0) await d.sleep(delay);
+      if (
+        w.is_summary &&
+        w.id.startsWith("failure:") &&
+        w.attempt_count === 0
+      ) {
+        const summary = await refreshFailureSummary(env, w.id);
+        if (!summary || summary.state === "cancelled") continue;
+        text = summary.text!;
+      }
       const stamp = d.clock().getTime();
       if (stamp >= t + 180000) break;
       const attempt = crypto.randomUUID();
@@ -254,6 +273,7 @@ async function drain(
         stamp - Math.ceil(1000 / rate),
       ).first();
       if (!claimed) continue;
+      attempts++;
       let content = { text, html: `<pre>${escapeHtml(text)}</pre>` };
       let leave: string | undefined;
       if (w.kind === "newsletter") {
@@ -348,6 +368,7 @@ async function drain(
       throw error;
     }
   }
+  return attempts;
 }
 
 export async function dispatchSummary(

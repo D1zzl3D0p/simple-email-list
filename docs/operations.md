@@ -72,6 +72,10 @@ Public signup requires successful server-side Turnstile validation and activates
 
 The D1 outbox retains pending work. SES accepted means submission accepted; delivered means a receiving mail server accepted it. It does not establish inbox placement. Timeout or lost acceptance responses become review-required; reconcile SES/SNS evidence before any manual retry. Exactly-once delivery is not guaranteed.
 
+After a delivery job makes a send attempt, it queues the next delivery batch and a completion-summary check after releasing its scheduler lease. Each batch retains its own SQL/CPU allowance and existing send guards. Empty or blocked batches stop the chain; the 15-minute cron recovers lost continuation signals. Successful batches no longer wait for another cron tick.
+
+Failure summaries defer review-required incidents for 15 minutes from attempt reservation. Reconciled incidents stay in history but do not alert. Before a failure summary's first attempt, its body is refreshed and an empty summary is cancelled. Other failures retain their existing reporting timing; already-attempted summaries keep their frozen body and uncertain-send safeguards.
+
 Inspect the private dashboard or email `status`. Preserve attempt IDs, provider IDs, incidents, and prior state during recovery. Newsletter pause and transport faults are separate; `resume` does not clear a transport fault. Confirmed provider quota exhaustion retains pending work and applies a shared cooldown.
 
 ## Database recovery
