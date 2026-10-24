@@ -258,7 +258,15 @@ export async function handleJobs(
         const now = new Date();
         const id = await queueBroadcastSummary(env, now);
         if (id) await dispatchSummary(env, id, now);
-      } else await runScheduled(env, new Date());
+      } else if (await runScheduled(env, new Date())) {
+        // Continue only after making progress and releasing the scheduler lease.
+        // Each batch keeps its own SQL/CPU budget and all ordinary send guards.
+        // A blocked/empty batch stops the chain; cron remains the repair path.
+        await env.JOBS.sendBatch([
+          { body: { type: "scheduled" } satisfies BackgroundJob },
+          { body: { type: "summaries" } satisfies BackgroundJob },
+        ]);
+      }
       message.ack();
     } catch {
       message.retry({ delaySeconds: 60 });
