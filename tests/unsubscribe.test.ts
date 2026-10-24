@@ -95,10 +95,15 @@ test("newsletter without an album omits Photos but preserves subscribe and leave
     "",
     "https://mission.example.com",
     "https://mission.example.com/unsubscribe?token=test",
+    "missionary@example.com",
   );
   expect(content.text).not.toContain("Photos:");
   expect(content.html).not.toContain("Google Photos album");
   expect(content.html).not.toContain('href=""');
+  expect(content.text).toContain("Email me: missionary@example.com");
+  expect(content.html).toContain(
+    'href="mailto:missionary@example.com">missionary@example.com</a>',
+  );
   expect(content.text).toContain(
     "Share / subscribe: https://mission.example.com",
   );
@@ -112,6 +117,7 @@ test("share link is public and separate from personal unsubscribe", async () => 
     "https://photos.google.com/album",
     env.PUBLIC_URL,
     env.PUBLIC_URL + "/unsubscribe?token=" + t,
+    "missionary@example.com",
   );
   expect(c.text).toContain("Share / subscribe: https://mission.example.com");
   expect(c.text).toContain("\n\nUnsubscribe:");

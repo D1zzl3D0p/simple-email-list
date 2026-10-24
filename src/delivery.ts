@@ -263,7 +263,13 @@ async function drain(
               text: `${text}\n\nUnsubscribe: ${leave}`,
               html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><p><a href="${escapeHtml(leave)}">Unsubscribe</a></p>`,
             }
-          : newsletterContent(text, w.album_url, env.PUBLIC_URL, leave);
+          : newsletterContent(
+              text,
+              w.album_url,
+              env.PUBLIC_URL,
+              leave,
+              settings.missionary,
+            );
       }
       let result: SendResult;
       try {

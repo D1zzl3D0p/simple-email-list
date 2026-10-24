@@ -142,6 +142,7 @@ export function newsletterContent(
   album: string,
   publicUrl: string,
   leave: string,
+  missionary: string,
 ) {
   const photosText = album ? `Photos: ${album}\n` : "";
   const linkStyle =
@@ -157,9 +158,9 @@ export function newsletterContent(
   ].join(
     ' <span aria-hidden="true" style="color:#9ca3af;padding:0 8px">·</span> ',
   );
-  const body = `${text}\n\n---\n\n${photosText}Share / subscribe: ${publicUrl}\n\nUnsubscribe: ${leave}`;
+  const body = `${text}\n\n---\n\nEmail me: ${missionary}\n\n${photosText}Share / subscribe: ${publicUrl}\n\nUnsubscribe: ${leave}`;
   return {
     text: body,
-    html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><hr style="margin:32px 0 20px;border:0;border-top:1px solid #e5e7eb"><p style="margin:0;text-align:center;font-family:Arial,sans-serif;font-size:13px;line-height:2">${footerLinks}</p>`,
+    html: `<div style="white-space:pre-wrap">${escapeHtml(text)}</div><hr style="margin:32px 0 20px;border:0;border-top:1px solid #e5e7eb"><p style="margin:0 0 12px;text-align:center;font-family:Arial,sans-serif;font-size:13px;line-height:2">Email me: <a style="${linkStyle}" href="mailto:${escapeHtml(missionary)}">${escapeHtml(missionary)}</a></p><p style="margin:0;text-align:center;font-family:Arial,sans-serif;font-size:13px;line-height:2">${footerLinks}</p>`,
   };
 }
