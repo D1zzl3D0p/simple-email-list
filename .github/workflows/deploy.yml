@@ -1,0 +1,132 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - docs/**
+      - README.md
+      - .github/workflows/**
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment target
+        type: choice
+        required: true
+        default: staging
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+env:
+  CI: "true"
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  check:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run check
+      - run: npm run verify:restore
+      - name: Restore private deployment configuration
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
+          DEPLOY_CONFIG: ${{ secrets[inputs.environment == 'staging' && 'WRANGLER_STAGING_CONFIG' || 'WRANGLER_PRODUCTION_CONFIG'] }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          import ts from 'typescript';
+          if (!process.env.DEPLOY_CONFIG) throw new Error('Missing private Wrangler configuration secret');
+          const parsed = ts.parseConfigFileTextToJson('deploy.jsonc', process.env.DEPLOY_CONFIG);
+          if (parsed.error) throw new Error('Invalid private Wrangler configuration');
+          function mask(value) {
+            if (typeof value === 'string' && value.length >= 3) {
+              console.log(`::add-mask::${value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
+              try { const decoded = JSON.parse(value); if (typeof decoded === 'object' && decoded) mask(decoded); } catch {}
+            } else if (value && typeof value === 'object') Object.values(value).forEach(mask);
+          }
+          mask(parsed.config);
+          writeFileSync(`wrangler.${process.env.DEPLOY_ENVIRONMENT}.jsonc`, process.env.DEPLOY_CONFIG, { mode: 0o600 });
+          NODE
+      - name: Check target bundle
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
+        run: npx --no-install wrangler deploy --config "wrangler.${DEPLOY_ENVIRONMENT}.jsonc" --dry-run
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Restore private deployment configuration
+        env:
+          DEPLOY_CONFIG: ${{ secrets[inputs.environment == 'staging' && 'WRANGLER_STAGING_CONFIG' || 'WRANGLER_PRODUCTION_CONFIG'] }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          import ts from 'typescript';
+          if (!process.env.DEPLOY_CONFIG) throw new Error('Missing private Wrangler configuration secret');
+          const parsed = ts.parseConfigFileTextToJson('deploy.jsonc', process.env.DEPLOY_CONFIG);
+          if (parsed.error) throw new Error('Invalid private Wrangler configuration');
+          function mask(value) {
+            if (typeof value === 'string' && value.length >= 3) {
+              console.log(`::add-mask::${value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
+              try { const decoded = JSON.parse(value); if (typeof decoded === 'object' && decoded) mask(decoded); } catch {}
+            } else if (value && typeof value === 'object') Object.values(value).forEach(mask);
+          }
+          mask(parsed.config);
+          writeFileSync(`wrangler.${process.env.DEPLOY_ENVIRONMENT}.jsonc`, process.env.DEPLOY_CONFIG, { mode: 0o600 });
+          NODE
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Set the CLOUDFLARE_API_TOKEN Actions secret before deploying."
+            exit 1
+          fi
+          npx --no-install wrangler deploy --config "wrangler.${DEPLOY_ENVIRONMENT}.jsonc"
+      - name: Verify deployed HTTP endpoints
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import ts from 'typescript';
+          const path = `wrangler.${process.env.DEPLOY_ENVIRONMENT}.jsonc`;
+          const { config } = ts.parseConfigFileTextToJson(path, readFileSync(path, 'utf8'));
+          for (const route of ['/health', '/', '/styles.css', '/qr.svg']) {
+            const response = await fetch(new URL(route, config.vars.PUBLIC_URL), { signal: AbortSignal.timeout(30000) });
+            if (response.status !== 200) throw new Error(`${route} returned HTTP ${response.status}`);
+            const body = await response.text();
+            if (!body.length || (route === '/health' && body !== 'ok')) throw new Error(`${route} returned an unexpected body`);
+            console.log(`PASS ${route}: HTTP 200`);
+          }
+          NODE
