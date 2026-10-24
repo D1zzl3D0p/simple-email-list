@@ -44,6 +44,8 @@ The install script applies a version-checked compatibility patch to `mailauth` s
 
 ## Configure your own deployment
 
+For GitHub-hosted deployment, use a [private instance repository](docs/github-deployment.md) that pins this project's code and owns your configuration and deployment credentials.
+
 Use `wrangler.jsonc` for local development and `wrangler.staging.jsonc` as a staging template. Every address, account ID, database ID, and hostname in the examples must be replaced with your own values. Keep local overrides in an ignored `wrangler.private*.jsonc` file and mailbox settings in an ignored `config/*.local.sql` file.
 
 You will need Cloudflare Workers, Email Routing, D1, private R2, a Queue, Turnstile, and Access, plus Amazon SES and an SNS event topic. Store credentials as Worker secrets, never in source. Complete the [deployment procedure](docs/operations.md) before enabling delivery.
