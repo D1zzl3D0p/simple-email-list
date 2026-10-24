@@ -115,3 +115,18 @@ jobs:
             exit 1
           fi
           npx --no-install wrangler deploy --config "wrangler.${DEPLOY_ENVIRONMENT}.jsonc"
+      - name: Verify deployed HTTP endpoints
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import ts from 'typescript';
+          const path = `wrangler.${process.env.DEPLOY_ENVIRONMENT}.jsonc`;
+          const { config } = ts.parseConfigFileTextToJson(path, readFileSync(path, 'utf8'));
+          for (const route of ['/health', '/', '/styles.css', '/qr.svg']) {
+            const response = await fetch(new URL(route, config.vars.PUBLIC_URL), { signal: AbortSignal.timeout(30000) });
+            if (response.status !== 200) throw new Error(`${route} returned HTTP ${response.status}`);
+            const body = await response.text();
+            if (!body.length || (route === '/health' && body !== 'ok')) throw new Error(`${route} returned an unexpected body`);
+            console.log(`PASS ${route}: HTTP 200`);
+          }
+          NODE
