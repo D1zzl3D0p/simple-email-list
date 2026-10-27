@@ -3,7 +3,7 @@
     "aws4fetch": "1.0.20",
     "html-to-text": "10.0.1",
     "jose": "6.2.12",
-    "mailauth": "8.0.1",
+    "mailauth": "8.0.4",
     "postal-mime": "4.0.11",
     "qrcode": "1.5.4"
   },
