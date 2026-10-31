@@ -210,13 +210,38 @@ p[role="alert"] {
 }
 
 .newsletter-archive-link {
-  margin: 24px 0 0;
+  margin: 28px 0 0;
   text-align: center;
-  font-size: 14px;
+}
+.newsletter-archive-link h2 {
+  margin: 0 0 14px;
+  font: 400 22px/1.35 Georgia, "Times New Roman", serif;
 }
 .newsletter-archive-link a {
-  color: #3c555f;
-  text-underline-offset: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 12px 24px;
+  border: 1px solid #263a42;
+  border-radius: 6px;
+  background: #263a42;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 3px 8px #263a4218;
+}
+.newsletter-archive-link a:hover {
+  background: #3c555f;
+  border-color: #3c555f;
+  box-shadow: 0 4px 12px #263a4226;
+}
+.newsletter-archive-link a:active {
+  background: #1c2c32;
+  box-shadow: none;
 }
 
 /* Public archive reader. */
