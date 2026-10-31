@@ -83,12 +83,12 @@ test("robots exclusion is served by the public Worker before asset fallback", as
 
 test("Archive remains available on open disabled and successful signup pages", async () => {
   const open = await worker.fetch(request("/"), routeEnv());
-  expect(await open.text()).toMatch(/href="\/updates"[^>]*>Archive<\/a>/);
+  expect(await open.text()).toMatch(/href="\/updates"[^>]*>View past emails /);
   const disabled = await worker.fetch(
     request("/"),
     testEnv({ STAGE: "production", SIGNUP_ENABLED: "false" }),
   );
-  expect(await disabled.text()).toMatch(/href="\/updates"[^>]*>Archive<\/a>/);
+  expect(await disabled.text()).toMatch(/href="\/updates"[^>]*>View past emails /);
   vi.stubGlobal("fetch", async () =>
     Response.json({
       success: true,
@@ -109,7 +109,7 @@ test("Archive remains available on open disabled and successful signup pages", a
   expect(success.status).toBe(200);
   const html = await success.text();
   expect(html).toContain("You’re on the list.");
-  expect(html).toMatch(/href="\/updates"[^>]*>Archive<\/a>/);
+  expect(html).toMatch(/href="\/updates"[^>]*>View past emails /);
 });
 
 test("unverified reader GET and HEAD gate content and history before storage or assets", async () => {
