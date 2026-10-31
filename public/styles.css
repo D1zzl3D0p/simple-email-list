@@ -208,3 +208,326 @@ p[role="alert"] {
   margin-top: 16px;
   color: inherit;
 }
+
+.newsletter-archive-link {
+  margin: 24px 0 0;
+  text-align: center;
+  font-size: 14px;
+}
+.newsletter-archive-link a {
+  color: #3c555f;
+  text-underline-offset: 4px;
+}
+
+/* Public archive reader. */
+.public-archive-page [hidden] {
+  display: none !important;
+}
+.public-archive-page .archive-shell {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: clamp(20px, 4vw, 40px);
+  border: 1px solid #dcd5c7;
+  border-radius: 8px;
+  background: #f6f4ed;
+}
+.public-archive-page a {
+  color: #3c555f;
+  text-underline-offset: 3px;
+}
+.public-archive-page .archive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid #ded9cd;
+}
+.public-archive-page .archive-header > a {
+  font:
+    400 28px/1.25 Georgia,
+    "Times New Roman",
+    serif;
+  color: inherit;
+  text-decoration: none;
+}
+.public-archive-page .archive-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.public-archive-page .archive-signup {
+  margin-left: 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.public-archive-page .archive-navigation {
+  display: flex;
+  gap: 6px;
+}
+.public-archive-page .archive-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #c7ceca;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.public-archive-page button.archive-control {
+  margin: 0;
+  background: transparent;
+  color: #3c555f;
+  font:
+    600 13px system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+.public-archive-page .archive-timeline-toggle::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 9px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(225deg);
+}
+.public-archive-page .archive-timeline-toggle[aria-expanded="true"]::after {
+  transform: rotate(45deg);
+}
+.public-archive-page .archive-control:hover,
+.public-archive-page .archive-control[aria-expanded="true"] {
+  background: #e5e9e5;
+  border-color: #aab7ac;
+}
+.public-archive-page .archive-control[aria-disabled="true"] {
+  border-color: #ded9cd;
+  background: transparent;
+  color: #737b7b;
+}
+.public-archive-page .archive-layout {
+  position: relative;
+  margin-top: 24px;
+}
+.public-archive-page .archive-index {
+  padding-bottom: 22px;
+  margin-bottom: 36px;
+  border-bottom: 1px solid #ded9cd;
+}
+.public-archive-page .archive-index.is-enhanced {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  left: 0;
+  width: min(420px, calc(100vw - 48px));
+  margin: 0;
+  padding: clamp(12px, 2vw, 20px);
+  border: 1px solid #d8d5cb;
+  border-radius: 6px;
+  background: #fcfbf7;
+  box-shadow:
+    0 16px 36px #263a4226,
+    0 3px 8px #263a4210;
+}
+.public-archive-page .archive-index.is-enhanced .archive-date-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+.public-archive-page .archive-index.is-enhanced .archive-months {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.public-archive-page .archive-years,
+.public-archive-page .archive-months {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.public-archive-page .archive-years {
+  margin-bottom: 8px;
+}
+.public-archive-page .archive-months {
+  margin-bottom: 12px;
+}
+.public-archive-page .archive-index-choice {
+  min-height: 44px;
+  min-width: 44px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #59696e;
+  font:
+    400 13px system-ui,
+    sans-serif;
+}
+.public-archive-page .archive-months .archive-index-choice {
+  min-width: 40px;
+  padding: 8px;
+}
+.public-archive-page .archive-years .archive-index-choice {
+  font-weight: 600;
+}
+.public-archive-page .archive-index-choice[aria-pressed="true"] {
+  background: #e5e9e5;
+  color: #263a42;
+}
+.public-archive-page .archive-index-choice:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.public-archive-page .archive-index-choice:not(:disabled):hover {
+  background: #eeebe2;
+}
+.public-archive-page .archive-year > h3 {
+  margin: 20px 0 8px;
+  font-size: 16px;
+}
+.public-archive-page .archive-month-group > h4 {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  color: #59696e;
+}
+.public-archive-page .archive-index.is-enhanced .archive-year > h3,
+.public-archive-page .archive-index.is-enhanced .archive-month-group > h4 {
+  display: none;
+}
+.public-archive-page .archive-date-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.public-archive-page .archive-date-link {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 8px;
+  border-left: 2px solid transparent;
+  border-radius: 3px;
+  text-decoration: none;
+}
+.public-archive-page .archive-date-link > time {
+  flex: 0 0 132px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.public-archive-page .archive-list-subject {
+  min-width: 0;
+  color: #59696e;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.public-archive-page .archive-date-link:hover {
+  background: #eeebe2;
+}
+.public-archive-page .archive-date-link[aria-current="page"] {
+  border-left-color: #9b8968;
+  background: #e5e9e5;
+}
+.public-archive-page .archive-reader {
+  max-width: 670px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.public-archive-page .archive-message {
+  padding: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+.public-archive-page .archive-message h1 {
+  margin: 0 0 14px;
+  font:
+    400 clamp(28px, 4vw, 40px)/1.2 Georgia,
+    "Times New Roman",
+    serif;
+  letter-spacing: -0.02em;
+}
+.public-archive-page .archive-message header > time {
+  color: #59696e;
+  font-size: 13px;
+}
+.public-archive-page .archive-body {
+  margin-top: 32px;
+  font:
+    400 18px/1.8 Georgia,
+    "Times New Roman",
+    serif;
+}
+.public-archive-page .archive-body p {
+  margin: 0 0 1.3em;
+}
+.public-archive-page .archive-body p:last-child {
+  margin-bottom: 0;
+}
+.public-archive-page .archive-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #ded9cd;
+  font-size: 12px;
+}
+.public-archive-page .archive-footer a {
+  color: #59696e;
+  text-decoration: none;
+}
+.public-archive-page .archive-footer a:hover {
+  text-decoration: underline;
+}
+.public-archive-page .archive-empty,
+.public-archive-page .archive-error {
+  padding: 32px 0 8px;
+  overflow-wrap: anywhere;
+}
+.public-archive-page .archive-empty h1,
+.public-archive-page .archive-error h1 {
+  font:
+    400 32px/1.2 Georgia,
+    serif;
+}
+@media (max-width: 800px) {
+  .public-archive-page .archive-date-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 700px) {
+  .public-archive-page .archive-header {
+    gap: 14px;
+    padding-bottom: 18px;
+  }
+  .public-archive-page .archive-header-actions {
+    width: 100%;
+    gap: 6px;
+  }
+  .public-archive-page .archive-control {
+    padding: 8px;
+  }
+  .public-archive-page .archive-signup {
+    margin-left: auto;
+    font-size: 12px;
+  }
+  .public-archive-page .archive-index-choice {
+    padding: 8px;
+  }
+  .public-archive-page .archive-index {
+    margin-bottom: 28px;
+  }
+  .public-archive-page .archive-date-link > time {
+    flex-basis: 125px;
+  }
+  .public-archive-page .archive-date-link {
+    gap: 8px;
+  }
+  .public-archive-page .archive-body {
+    font-size: 17px;
+  }
+}

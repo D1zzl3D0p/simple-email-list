@@ -11,7 +11,7 @@ Subscribers join through a simple web form. An approved sender emails the update
 - Email management commands: `add`, `remove`, `full`, `dump emails`, `status`, `pause`, `resume`, and `help`. `full` returns active subscribers; `dump emails` returns all saved addresses with their subscription status to the approved administrator.
 - DKIM verification of approved senders before processing incoming updates or commands.
 - A durable D1 outbox with paced, single-recipient Amazon SES delivery and signed SNS event handling for delivery, bounces, and complaints.
-- Private R2 archives, a Cloudflare Access-protected dashboard, and built-in D1 Time Travel recovery.
+- A public, CAPTCHA-gated newsletter archive with a month index, plus private R2 storage, a Cloudflare Access-protected dashboard, and built-in D1 Time Travel recovery.
 - Text and ordinary links in updates; attachments and inline images are discarded from outgoing messages.
 
 ## Status and costs
@@ -68,3 +68,13 @@ For production, set `STAGE` to `production`. Public signup requires both `SIGNUP
 See [CONTRIBUTING.md](CONTRIBUTING.md) for checks and [SECURITY.md](SECURITY.md) for private reporting and secret handling. The signing key in `tests/fixtures/sns-test-key.pem` is deliberately public and test-only. Never reuse it in a deployed system.
 
 Licensed under [MIT](LICENSE). Third-party dependencies retain their own licenses. `private: true` in `package.json` prevents accidental npm publication; the source is open for reuse under MIT.
+
+## Public newsletter archive
+
+The signup page links to `/updates`. Visitors can read accepted newsletters after a server-verified Turnstile challenge, without subscribing. A signed browser pass lasts 24 hours. Direct links preserve the chosen letter through verification; Older/Newer controls and a floating month index provide navigation. Dates use America/Denver.
+
+Apply migration `0011_archive_test_flag.sql` before deploying this version. Accepted broadcasts appear automatically regardless of delivery progress; commands, held messages, and records marked `inbound_messages.is_test=1` remain outside the public reader. New records default to `is_test=0`. Marking tests affects archive visibility only, not sending or private records. Review historical records before enabling the archive on an existing instance.
+
+The archive uses canonical normalized text and links, with no photos, search, or categories. Its gate and content responses use no-store/noindex headers. The site requests no crawling through `robots.txt`; CAPTCHA and crawler preferences do not make published letters confidential. Reuse the instance's existing Turnstile configuration for its public hostname; the archive challenge uses the `archive` action.
+
+Instance-specific records, deployment configuration, and operational release evidence belong in the private instance repository. See [instance deployment](docs/github-deployment.md).
